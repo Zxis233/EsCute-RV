@@ -1,0 +1,12 @@
+*.wasm
+prj/
+sdram/
+user/backup/
+user/data/
+user/tools/__pycache__
+*.dot
+*.svg
+*.json
+*.log
+*.pb
+*.pdf
