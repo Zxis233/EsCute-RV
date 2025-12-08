@@ -302,7 +302,7 @@ module CPU_TOP (
 
     DRAM u_DRAM (
         .clk(clk),
-        .a  (alu_result_MEM),
+        .a  (alu_result_MEM[17:2]),  // 字节地址转换为字地址 (除以4)
         .spo(DRAM_output_data),
         .we (dram_we_MEM),
         .din(rf_rd2_MEM)
@@ -334,7 +334,7 @@ module CPU_TOP (
         // 写回数据
         .wd_mem_i         (rf_wd_MEM),
         .wd_wb_o          (rf_wd_WB_from_PR),
-        // DRAM数据（同步读，在WB级可用）
+        // DRAM数据（同步读，直接使用不再寄存）
         .dram_data_mem_i  (DRAM_output_data),
         .dram_data_wb_o   (DRAM_data_WB),
         // 写回数据来源选择信号
@@ -344,8 +344,9 @@ module CPU_TOP (
 
     // WB 级
     // 回写数据来源选择MUX
-    // 对于同步DRAM，在WB级选择是否使用DRAM数据
-    assign rf_wd_WB = (wd_sel_WB == `WD_SEL_FROM_DRAM) ? DRAM_data_WB : rf_wd_WB_from_PR;
+    // 对于同步DRAM，直接使用MEM级的DRAM输出（已经过寄存）
+    // 不通过PR_MEM_WB传递，而是直接使用
+    assign rf_wd_WB = (wd_sel_WB == `WD_SEL_FROM_DRAM) ? DRAM_output_data : rf_wd_WB_from_PR;
 
     // 冒险控制单元
 
