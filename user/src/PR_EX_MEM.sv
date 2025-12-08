@@ -29,7 +29,10 @@ module PR_EX_MEM (
     output logic [31:0] wd_mem_o,
     // 回写数据 来自ID/EX级
     input  logic [31:0] rD2_ex_i,
-    output logic [31:0] rD2_mem_o
+    output logic [31:0] rD2_mem_o,
+    // 读取类型
+    input  logic [ 1:0] load_type_ex_i,
+    output logic [ 1:0] load_type_mem_o
 );
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
@@ -41,6 +44,7 @@ module PR_EX_MEM (
             alu_result_mem_o  <= 32'b0;
             wd_mem_o          <= 32'b0;
             rD2_mem_o         <= 32'b0;
+            load_type_mem_o   <= 2'b0;
         end else begin
             pc_mem_o          <= pc_ex_i;
             instr_valid_mem_o <= instr_valid_ex_i;
@@ -50,6 +54,7 @@ module PR_EX_MEM (
             alu_result_mem_o  <= alu_result_ex_i;
             wd_mem_o          <= wd_ex_i;
             rD2_mem_o         <= rD2_ex_i;
+            load_type_mem_o   <= load_type_ex_i;
         end
     end
 
