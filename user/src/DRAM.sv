@@ -2,7 +2,6 @@
 
 // DRAM 行为模型 - 用于仿真
 // 替代 Xilinx IP 核
-// [HACK] Vivado无法综合异步读的RAM
 module DRAM (
     input  logic        clk,  // 时钟
     input  logic [15:0] a,    // 地址输入 (16位 = 64K words)
@@ -22,12 +21,6 @@ module DRAM (
         for (i = 0; i < 65536; i = i + 1) begin
             ram_data[i] = 32'h00000000;
         end
-
-        // 可选: 从文件加载初始数据
-        // if ($value$plusargs("DRAM=%s", ram_file)) begin
-        //     $readmemh(ram_file, ram_data);
-        //     $display("DRAM: Loaded data from %s", ram_file);
-        // end
     end
 
     // 写操作 (同步)
