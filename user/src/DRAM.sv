@@ -42,9 +42,4 @@ module DRAM (
         end
     end
 
-    // [HACK] 异步读
-    // assign spo = ram_data[a];
-    // 确保在写操作时读出未知值
-    // assign spo = we ? 'x : ram_data[a];
-
 endmodule
