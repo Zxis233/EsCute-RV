@@ -334,7 +334,9 @@ module CPU_TOP (
         // 写回数据
         .wd_mem_i         (rf_wd_MEM),
         .wd_wb_o          (rf_wd_WB_from_PR),
-        // DRAM数据（同步读，直接使用不再寄存）
+        // DRAM数据（同步读）
+        // 注意：DRAM的spo输出已经是寄存器输出，但我们不在PR_MEM_WB中再次寄存
+        // 而是在WB级直接使用DRAM_output_data以避免额外的一个周期延迟
         .dram_data_mem_i  (DRAM_output_data),
         .dram_data_wb_o   (DRAM_data_WB),
         // 写回数据来源选择信号
@@ -344,8 +346,8 @@ module CPU_TOP (
 
     // WB 级
     // 回写数据来源选择MUX
-    // 对于同步DRAM，直接使用MEM级的DRAM输出（已经过寄存）
-    // 不通过PR_MEM_WB传递，而是直接使用
+    // 对于同步DRAM，DRAM的spo已经是寄存器输出，在WB级直接使用以避免多余延迟
+    // DRAM_output_data在整个WB周期内保持稳定，可以安全地被寄存器堆采样
     assign rf_wd_WB = (wd_sel_WB == `WD_SEL_FROM_DRAM) ? DRAM_output_data : rf_wd_WB_from_PR;
 
     // 冒险控制单元
