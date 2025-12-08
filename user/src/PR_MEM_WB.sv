@@ -20,8 +20,11 @@ module PR_MEM_WB (
     input  logic [31:0] wd_mem_i,
     output logic [31:0] wd_wb_o,
     // 同步读DRAM时的额外数据
-    input logic [31:0] dram_data_mem_i,
-    output logic [31:0] dram_data_wb_o
+    input  logic [31:0] dram_data_mem_i,
+    output logic [31:0] dram_data_wb_o,
+    // 写回数据来源 用于在WB级选择
+    input  logic [ 1:0] wd_sel_mem_i,
+    output logic [ 1:0] wd_sel_wb_o
 );
 
     always_ff @(posedge clk or negedge rst_n) begin
@@ -31,12 +34,16 @@ module PR_MEM_WB (
             rf_we_wb_o       <= 1'b0;
             wr_wb_o          <= 5'b0;
             wd_wb_o          <= 32'b0;
+            dram_data_wb_o   <= 32'b0;
+            wd_sel_wb_o      <= 2'b0;
         end else begin
             pc_wb_o          <= pc_mem_i;
             instr_valid_wb_o <= instr_valid_mem_i;
             rf_we_wb_o       <= rf_we_mem_i;
             wr_wb_o          <= wr_mem_i;
             wd_wb_o          <= wd_mem_i;
+            dram_data_wb_o   <= dram_data_mem_i;
+            wd_sel_wb_o      <= wd_sel_mem_i;
         end
     end
 

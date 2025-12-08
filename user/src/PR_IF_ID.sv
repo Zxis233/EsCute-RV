@@ -1,4 +1,4 @@
-`include "./include/defines.svh"
+`include "include/defines.svh"
 
 module PR_IF_ID (
     input  logic        clk,

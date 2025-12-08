@@ -5,6 +5,7 @@ module HazardUnit (
     input  logic        rst_n,
     // LOAD指令判断
     input  logic [ 1:0] wd_sel_EX,
+    input  logic [ 1:0] wd_sel_MEM,
     // 寄存器使用信号
     input  logic        rs1_used_ID,
     input  logic        rs2_used_ID,
@@ -71,24 +72,36 @@ module HazardUnit (
 
     // 前递数据选择
     // 优先级：EX > MEM > WB
+    // 注意：对于同步DRAM，MEM级的load指令数据尚未可用，不能前递
     always_comb begin
         // 源操作数1前递数据选择
         if (RAW_1_rD1)      fwd_rD1_ID = rf_wd_EX;  // 来自EX级
-        else if (RAW_2_rD1) fwd_rD1_ID = rf_wd_MEM; // 来自MEM级
+        else if (RAW_2_rD1 && wd_sel_MEM != `WD_SEL_FROM_DRAM) fwd_rD1_ID = rf_wd_MEM; // 来自MEM级（非load）
         else if (RAW_3_rD1) fwd_rD1_ID = rf_wd_WB;  // 来自WB级
         else                fwd_rD1_ID = 32'b0;
 
         // 源操作数2前递数据选择
         if (RAW_1_rD2)      fwd_rD2_ID = rf_wd_EX;  // 来自EX级
-        else if (RAW_2_rD2) fwd_rD2_ID = rf_wd_MEM; // 来自MEM级
+        else if (RAW_2_rD2 && wd_sel_MEM != `WD_SEL_FROM_DRAM) fwd_rD2_ID = rf_wd_MEM; // 来自MEM级（非load）
         else if (RAW_3_rD2) fwd_rD2_ID = rf_wd_WB;  // 来自WB级
         else                fwd_rD2_ID = 32'b0;
     end
     // verilog_format: on
 
     // Load_use 冒险判断
+    // 对于同步DRAM，load指令的数据在WB级才可用
+    // 因此需要检测EX级和MEM级的load指令
     logic load_use_hazard;
-    assign load_use_hazard = (wd_sel_EX == `WD_SEL_FROM_DRAM) && (RAW_1_rD1 || RAW_1_rD2);
+    logic load_use_hazard_ex;   // EX级的load指令导致的冒险
+    logic load_use_hazard_mem;  // MEM级的load指令导致的冒险
+    
+    // EX级的load指令需要停顿2个周期
+    assign load_use_hazard_ex = (wd_sel_EX == `WD_SEL_FROM_DRAM) && (RAW_1_rD1 || RAW_1_rD2);
+    
+    // MEM级的load指令需要停顿1个周期（数据还未到达WB级）
+    assign load_use_hazard_mem = (wd_sel_MEM == `WD_SEL_FROM_DRAM) && (RAW_2_rD1 || RAW_2_rD2);
+    
+    assign load_use_hazard = load_use_hazard_ex || load_use_hazard_mem;
 
     // [TODO] 静态分支预测
     // [TODO] 动态分支预测

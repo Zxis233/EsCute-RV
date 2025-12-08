@@ -21,7 +21,7 @@ module CPU_TOP (
 
     logic                  dram_we_ID,dram_we_EX,dram_we_MEM;
     logic                    rf_we_ID,  rf_we_EX,  rf_we_MEM,  rf_we_WB;
-    logic [1:0]             wd_sel_ID, wd_sel_EX, wd_sel_MEM;
+    logic [1:0]             wd_sel_ID, wd_sel_EX, wd_sel_MEM, wd_sel_WB;
 
     logic [4:0]                 wR_ID,     wR_EX,     wR_MEM,     wR_WB;
     logic [31:0]                        rf_wd_EX,  rf_wd_MEM,  rf_wd_WB;
@@ -290,7 +290,9 @@ module CPU_TOP (
         .wd_ex_i          (rf_wd_EX),
         .wd_mem_o         (rf_wd_MEM_PR2MUX),
         .rD2_ex_i         (rf_rd2_EX),
-        .rD2_mem_o        (rf_rd2_MEM)
+        .rD2_mem_o        (rf_rd2_MEM),
+        .load_type_ex_i   (load_type_EX),
+        .load_type_mem_o  (load_type_MEM)
     );
 
     // MEM 级
@@ -306,13 +308,14 @@ module CPU_TOP (
         .din(rf_rd2_MEM)
     );
 
-    // 回写数据来源2选择MUX
-    // 选择是否为DRAM数据
-    // 对于同步DRAM 将MUX放到WB级
-    assign rf_wd_MEM = (wd_sel_MEM == `WD_SEL_FROM_DRAM) ? DRAM_output_data : rf_wd_MEM_PR2MUX;
+    // 对于同步DRAM，数据将在下一个时钟周期可用
+    // 将数据传递到WB级，在WB级进行选择
+    assign rf_wd_MEM = rf_wd_MEM_PR2MUX;
 
     // ================= MEM/WB 流水线寄存器 ===================
 
+    logic [31:0] DRAM_data_WB;
+    logic [31:0] rf_wd_WB_from_PR;
     PR_MEM_WB u_PR_MEM_WB (
         .clk              (clk),
         .rst_n            (rst_n),
@@ -330,8 +333,19 @@ module CPU_TOP (
         .wr_wb_o          (wR_WB),
         // 写回数据
         .wd_mem_i         (rf_wd_MEM),
-        .wd_wb_o          (rf_wd_WB)
+        .wd_wb_o          (rf_wd_WB_from_PR),
+        // DRAM数据（同步读，在WB级可用）
+        .dram_data_mem_i  (DRAM_output_data),
+        .dram_data_wb_o   (DRAM_data_WB),
+        // 写回数据来源选择信号
+        .wd_sel_mem_i     (wd_sel_MEM),
+        .wd_sel_wb_o      (wd_sel_WB)
     );
+
+    // WB 级
+    // 回写数据来源选择MUX
+    // 对于同步DRAM，在WB级选择是否使用DRAM数据
+    assign rf_wd_WB = (wd_sel_WB == `WD_SEL_FROM_DRAM) ? DRAM_data_WB : rf_wd_WB_from_PR;
 
     // 冒险控制单元
 
@@ -339,6 +353,7 @@ module CPU_TOP (
         .clk               (clk),
         .rst_n             (rst_n),
         .wd_sel_EX         (wd_sel_EX),
+        .wd_sel_MEM        (wd_sel_MEM),
         .rs1_used_ID       (rs1_used_ID),
         .rs2_used_ID       (rs2_used_ID),
         .rR1_ID            (rR1),
