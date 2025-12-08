@@ -34,9 +34,12 @@ module DRAM (
     always_ff @(posedge clk) begin
         if (we) begin
             ram_data[a] <= din;
-            $display("%0t\t| 0x%4h <| 0x%h\t|[MEM]", $time, a, din);
+            $display("%0t\t| 0x%4h <| 0x%h\t|[MEM W]", $time, a, din);
         end
-        spo <= ram_data[a];  // 同步读
+        spo <= ram_data[a];  // [FIXME] 同步读
+        if (!we) begin
+            $display("%0t\t| 0x%4h |> 0x%h\t|[MEM R]", $time, a, ram_data[a]);
+        end
     end
 
     // [HACK] 异步读

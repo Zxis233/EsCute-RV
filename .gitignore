@@ -12,3 +12,4 @@ test.json
 *.log
 *.pb
 *.pdf
+*.out

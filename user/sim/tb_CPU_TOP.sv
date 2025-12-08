@@ -131,7 +131,7 @@ module tb_CPU_TOP;
                 // EX 级
                 if (u_CPU_TOP.valid_EX)
                     $display(
-                        "%0t\t| %h\t| --------\t| EX (ALU=%h)",
+                        "%0t\t| %h\t| --------\t| EX \t (ALU=0x%h)",
                         $time,
                         u_CPU_TOP.pc_EX,
                         u_CPU_TOP.alu_result_EX
