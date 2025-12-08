@@ -37,12 +37,12 @@ module DRAM (
             // $display("[DRAM Write] addr=0x%04h, data=0x%08h", a, din);
             $display("%0t\t| 0x%4h <| 0x%h\t|[MEM]", $time, a, din);
         end
-        // spo <= ram_data[a];  // [FIXME] 同步读
+        spo <= ram_data[a];  // [FIXME] 同步读
     end
 
     // [HACK] 异步读
     // assign spo = ram_data[a];
     // 确保在写操作时读出未知值
-    assign spo = we ? 'x : ram_data[a];
+    // assign spo = we ? 'x : ram_data[a];
 
 endmodule
