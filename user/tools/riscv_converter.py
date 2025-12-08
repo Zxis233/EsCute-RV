@@ -153,6 +153,11 @@ def asm_to_hex(asm_line: str) -> Optional[int]:
         return None
     
     inst_name = parts[0].lower()
+    
+    # 特殊处理 nop 伪指令 (nop = addi x0, x0, 0)
+    if inst_name == 'nop':
+        return 0x00000013
+    
     inst = INST_BY_NAME.get(inst_name)
     
     if not inst:
@@ -324,6 +329,10 @@ def hex_to_asm(machine_code: int, aligned: bool = True) -> str:
         
         elif inst.type == InstType.I_TYPE:
             imm = sign_extend((machine_code >> 20) & 0xFFF, 12)
+            
+            # 特殊处理 nop 伪指令 (addi x0, x0, 0)
+            if inst.name == 'addi' and rd == 0 and rs1 == 0 and imm == 0:
+                return 'nop'
             
             if inst.opcode == 0x03 or inst.opcode == 0x67:  # Load or jalr
                 if aligned:
