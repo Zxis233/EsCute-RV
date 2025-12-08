@@ -3,10 +3,10 @@ prj/
 sdram/
 user/backup/
 user/data/
+.vscode/settings.json
 user/tools/__pycache__
 *.dot
 *.svg
-*.json
 *.log
 *.pb
 *.pdf
