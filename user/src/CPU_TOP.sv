@@ -270,7 +270,6 @@ module CPU_TOP (
 
 // ================= EX/MEM 流水线寄存器 ===================
 
-    logic [31:0] rf_wd_MEM_PR2MUX;
     PR_EX_MEM u_PR_EX_MEM (
         .clk              (clk),
         .rst_n            (rst_n),
@@ -289,7 +288,7 @@ module CPU_TOP (
         .alu_result_ex_i  (alu_result_EX),
         .alu_result_mem_o (alu_result_MEM),
         .wd_ex_i          (rf_wd_EX),
-        .wd_mem_o         (rf_wd_MEM_PR2MUX),
+        .wd_mem_o         (rf_wd_MEM),
         .rD2_ex_i         (rf_rd2_EX),
         .rD2_mem_o        (rf_rd2_MEM),
         .sl_type_ex_i     (sl_type_EX),
@@ -298,26 +297,40 @@ module CPU_TOP (
 
 // MEM 级
 
-    // DRAM模块
-    logic [31:0] DRAM_output_data;
+    // LoadStoreUnit模块
+    logic [31:0] DRAM_input_data;  // LSU处理后数据
+    logic [31:0] DRAM_output_data; // LSU从DRAM得到的数据
+    logic [31:0] load_data_o;      // LSU输出的最终加载数据
     logic [3:0] dram_we_MEM_strbe;
+    LoadStoreUnit u_LoadStoreUnit(
+        .sl_type       (sl_type_MEM),
+        .addr          (alu_result_MEM),
+        .load_data_i   (DRAM_output_data),
+        .load_data_o   (load_data_o),
+        .store_data_i  (rf_rd2_MEM),
+        .store_data_o  (DRAM_input_data),
+        .dram_we       (dram_we_MEM),
+        .wstrb         (dram_we_MEM_strbe)
+    );
 
+
+    // DRAM模块
     DRAM u_DRAM (
         .clk(clk),
         .a  (alu_result_MEM[17:2]),  // 字节地址转换为字地址 (除以4)
         .spo(DRAM_output_data),
-        .we ({4{dram_we_MEM}}),
-        .din(rf_rd2_MEM)
+        // .we ({4{dram_we_MEM}}),
+        .we (dram_we_MEM_strbe),
+        .din(DRAM_input_data)
     );
 
     // 对于同步DRAM，数据将在下一个时钟周期可用
     // 将数据传递到WB级，在WB级进行选择
-    assign rf_wd_MEM = rf_wd_MEM_PR2MUX;
 
 // ================= MEM/WB 流水线寄存器 ===================
 
     logic [31:0] DRAM_data_WB;
-    logic [31:0] rf_wd_WB_from_PR;
+    logic [31:0] rf_wd_WB_from_ALU;
     PR_MEM_WB u_PR_MEM_WB (
         .clk              (clk),
         .rst_n            (rst_n),
@@ -335,12 +348,12 @@ module CPU_TOP (
         .wr_wb_o          (wR_WB),
         // 写回数据
         .wd_mem_i         (rf_wd_MEM),
-        .wd_wb_o          (rf_wd_WB_from_PR),
+        .wd_wb_o          (rf_wd_WB_from_ALU),
         // DRAM数据（同步读）
         // 注意：DRAM的spo输出已经是寄存器输出，但我们不在PR_MEM_WB中再次寄存
         // 而是在WB级直接使用DRAM_output_data以避免额外的一个周期延迟
-        .dram_data_mem_i  (DRAM_output_data),
-        .dram_data_wb_o   (DRAM_data_WB),
+        // .dram_data_mem_i  (DRAM_output_data),
+        // .dram_data_wb_o   (DRAM_data_WB),
         // 写回数据来源选择信号
         .wd_sel_mem_i     (wd_sel_MEM),
         .wd_sel_wb_o      (wd_sel_WB)
@@ -350,7 +363,7 @@ module CPU_TOP (
     // 回写数据来源选择MUX
     // 对于同步DRAM，DRAM的spo已经是寄存器输出，在WB级直接使用以避免多余延迟
     // DRAM_output_data在整个WB周期内保持稳定，可以安全地被寄存器堆采样
-    assign rf_wd_WB = (wd_sel_WB == `WD_SEL_FROM_DRAM) ? DRAM_output_data : rf_wd_WB_from_PR;
+    assign rf_wd_WB = (wd_sel_WB == `WD_SEL_FROM_DRAM) ? load_data_o : rf_wd_WB_from_ALU;
 
     // 冒险控制单元
 

@@ -53,11 +53,12 @@ module IROM (
 `else
         if (1) begin
             rom_file =
+            // "user/data/hex/ls_test.hex"
             // "user/data/hex/jalr.hex"
-            "user/data/hex/full_test.hex"
+            // "user/data/hex/full_test.hex"
             // "user/data/hex/full_test_rv.hex"
             // "user/data/hex/full_test_label.hex"
-            // "user/data/hex/sw_lw.hex"
+            "user/data/hex/sw_lw.hex"
             // "user/data/hex/sw.hex"
             // "user/data/hex/U.hex"
             // "user/data/hex/simple_test.hex"
