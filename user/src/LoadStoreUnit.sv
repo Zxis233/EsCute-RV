@@ -1,5 +1,7 @@
 `include "include/defines.svh"
 
+// [HACK] LoadStoreUnit模块横跨MEM和WB级
+// 可实例化两个LoadStoreUnit模块 分别处理
 module LoadStoreUnit (
     input  logic [ 3:0] sl_type,
     input  logic [31:0] addr,
@@ -55,13 +57,15 @@ module LoadStoreUnit (
             end
 
         end else if (dram_we) begin
+            logic [15:0] half_byte;
+            logic [ 4:0] shift;  // 移位量 0, 8, 16, 24
+            shift = 4'b0;
             unique case (sl_type[1:0])
                 2'b01: begin  // SB
                     logic [7:0] byte_val;
-                    logic [4:0] shift;  // 移位量 0, 8, 16, 24
 
-                    byte_val = store_data_i[7:0];  // 只关心最低 8 位
-                    shift    = {addr[1:0], 3'b000};  // addr[1:0] * 8
+                    half_byte = store_data_i[7:0];  // 只关心最低 8 位
+                    shift     = {addr[1:0], 3'b000};  // addr[1:0] * 8
 
                     // 写使能
                     unique case (addr[1:0])
@@ -73,15 +77,14 @@ module LoadStoreUnit (
                     endcase
 
                     // 把 byte_val 放到对应 byte lane
-                    store_data_o = ({24'b0, byte_val} << shift);
+                    store_data_o = ({24'b0, half_byte[7:0]} << shift);
                 end
 
                 2'b10: begin  // SH
                     logic [15:0] half_val;
-                    logic [ 4:0] shift;  // 移位量 0 或 16
 
-                    half_val = store_data_i[15:0];  // 只关心最低 16 位
-                    shift    = {addr[1], 4'b0000};  // addr[1] ? 16 : 0
+                    half_byte = store_data_i[15:0];  // 只关心最低 16 位
+                    shift     = {addr[1], 4'b0000};  // addr[1] ? 16 : 0
 
                     // 写使能
                     unique case (addr[1])
@@ -91,17 +94,19 @@ module LoadStoreUnit (
                     endcase
 
                     // 把 half_val 放到低/高 halfword
-                    store_data_o = ({16'b0, half_val} << shift);
+                    store_data_o = ({16'b0, half_byte} << shift);
                 end
 
                 2'b11: begin  // SW
                     wstrb        = 4'b1111;
                     store_data_o = store_data_i;  // 直接写整个 word
+                    half_byte    = 16'b0;
                 end
 
                 default: begin
                     wstrb        = 4'b0000;
                     store_data_o = 32'b0;
+                    half_byte    = 16'b0;
                 end
             endcase
         end else begin

@@ -1,6 +1,8 @@
 `ifndef _DEFINES_V
 `define _DEFINES_V 
 
+`define YOSYS 
+
 // 临时文件路径
 `define VCD_FILEPATH "prj/icarus/wave.vcd"
 

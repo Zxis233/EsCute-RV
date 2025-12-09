@@ -70,7 +70,6 @@ module tb_CPU_TOP;
         x30 = `REG_FILE.rf_in[30];
         x31 = `REG_FILE.rf_in[31];
     end
-
     // verilog_format: on
 
     // 时钟生成 (100MHz, 周期 10ns)
