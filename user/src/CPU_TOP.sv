@@ -306,7 +306,7 @@ module CPU_TOP (
         .clk(clk),
         .a  (alu_result_MEM[17:2]),  // 字节地址转换为字地址 (除以4)
         .spo(DRAM_output_data),
-        .we (dram_we_MEM),
+        .we ({4{dram_we_MEM}}),
         .din(rf_rd2_MEM)
     );
 
