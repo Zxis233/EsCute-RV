@@ -39,11 +39,11 @@ module HazardUnit (
     // ID/EX冲刷信号
     output logic        flush_ID_EX,
     // 前递使能
-    output logic        fwd_rD1e_ID,
-    output logic        fwd_rD2e_ID,
+    output logic        fwd_rD1e_EX,
+    output logic        fwd_rD2e_EX,
     // 前递数据
-    output logic [31:0] fwd_rD1_ID,
-    output logic [31:0] fwd_rD2_ID
+    output logic [31:0] fwd_rD1_EX,
+    output logic [31:0] fwd_rD2_EX
 );
 
     // RAW 冒险判断
@@ -66,42 +66,44 @@ module HazardUnit (
 
     // 前递使能信号生成
     always_comb begin
-        fwd_rD1e_ID = RAW_1_rD1 || RAW_2_rD1 || RAW_3_rD1;
-        fwd_rD2e_ID = RAW_1_rD2 || RAW_2_rD2 || RAW_3_rD2;
+        fwd_rD1e_EX = RAW_1_rD1 || RAW_2_rD1 || RAW_3_rD1;
+        fwd_rD2e_EX = RAW_1_rD2 || RAW_2_rD2 || RAW_3_rD2;
     end
 
     // 前递数据选择
-    // 优先级：EX > MEM > WB
-    // 注意：对于同步DRAM，MEM级的load指令数据尚未可用，不能前递
+    // 优先级 EX > MEM > WB
+    // 对于同步DRAM MEM级的load指令数据尚未可用 不能前递
     always_comb begin
         // 源操作数1前递数据选择
-        if (RAW_1_rD1)      fwd_rD1_ID = rf_wd_EX;  // 来自EX级
-        else if (RAW_2_rD1 && wd_sel_MEM != `WD_SEL_FROM_DRAM) fwd_rD1_ID = rf_wd_MEM; // 来自MEM级（非load）
-        else if (RAW_3_rD1) fwd_rD1_ID = rf_wd_WB;  // 来自WB级
-        else                fwd_rD1_ID = 32'b0;
+        if (RAW_1_rD1)                      fwd_rD1_EX = rf_wd_EX;  // 来自EX级
+        else if (RAW_2_rD1 &&
+         wd_sel_MEM != `WD_SEL_FROM_DRAM)   fwd_rD1_EX = rf_wd_MEM; // 来自MEM级（非load）
+        else if (RAW_3_rD1)                 fwd_rD1_EX = rf_wd_WB;  // 来自WB级
+        else                                fwd_rD1_EX = 32'b0;
 
         // 源操作数2前递数据选择
-        if (RAW_1_rD2)      fwd_rD2_ID = rf_wd_EX;  // 来自EX级
-        else if (RAW_2_rD2 && wd_sel_MEM != `WD_SEL_FROM_DRAM) fwd_rD2_ID = rf_wd_MEM; // 来自MEM级（非load）
-        else if (RAW_3_rD2) fwd_rD2_ID = rf_wd_WB;  // 来自WB级
-        else                fwd_rD2_ID = 32'b0;
+        if (RAW_1_rD2)                      fwd_rD2_EX = rf_wd_EX;  // 来自EX级
+        else if (RAW_2_rD2 &&
+         wd_sel_MEM != `WD_SEL_FROM_DRAM)   fwd_rD2_EX = rf_wd_MEM; // 来自MEM级（非load）
+        else if (RAW_3_rD2)                 fwd_rD2_EX = rf_wd_WB;  // 来自WB级
+        else                                fwd_rD2_EX = 32'b0;
     end
     // verilog_format: on
 
     // Load_use 冒险判断
-    // 对于同步DRAM，load指令的数据在WB级才可用
-    // 因此需要检测EX级和MEM级的load指令
+    // 对于同步DRAM load指令的数据在WB级才可用
+    // 需要检测EX级和MEM级的load指令
     logic load_use_hazard;
-    logic load_use_hazard_ex;   // EX级的load指令导致的冒险
+    logic load_use_hazard_ex;  // EX级的load指令导致的冒险
     logic load_use_hazard_mem;  // MEM级的load指令导致的冒险
-    
+
     // EX级的load指令需要停顿2个周期
-    assign load_use_hazard_ex = (wd_sel_EX == `WD_SEL_FROM_DRAM) && (RAW_1_rD1 || RAW_1_rD2);
-    
+    assign load_use_hazard_ex  = (wd_sel_EX == `WD_SEL_FROM_DRAM) && (RAW_1_rD1 || RAW_1_rD2);
+
     // MEM级的load指令需要停顿1个周期（数据还未到达WB级）
     assign load_use_hazard_mem = (wd_sel_MEM == `WD_SEL_FROM_DRAM) && (RAW_2_rD1 || RAW_2_rD2);
-    
-    assign load_use_hazard = load_use_hazard_ex || load_use_hazard_mem;
+
+    assign load_use_hazard     = load_use_hazard_ex || load_use_hazard_mem;
 
     // [TODO] 静态分支预测
     // [TODO] 动态分支预测
@@ -109,13 +111,6 @@ module HazardUnit (
     // 此处设置为静态不预测 因此获取EX级的跳转结果
     // assign branch_predicted_result = branch_predicted_i;
     assign branch_predicted_result = take_branch_NextPC;
-
-    // // 控制冒险时将IF/ID寄存器打一拍
-    // logic control_hazard_stall;
-    // always_ff @(posedge clk or negedge rst_n) begin
-    //     if (!rst_n) control_hazard_stall <= 1'b0;
-    //     else control_hazard_stall <= branch_predicted_result;
-    // end
 
     // 流水线冲刷与停顿
     always_comb begin

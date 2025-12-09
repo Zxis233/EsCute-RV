@@ -5,7 +5,8 @@ user/backup/
 user/data/
 .vscode/settings.json
 user/tools/__pycache__
-user/src/IROM.sv
+user/src/IROM_local.sv
+user/sim/tb_CPU_TOP_local.sv
 test.json
 *.dot
 *.svg

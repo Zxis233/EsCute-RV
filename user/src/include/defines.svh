@@ -1,5 +1,5 @@
 `ifndef _DEFINES_V
-`define _DEFINES_V
+`define _DEFINES_V 
 
 // 临时文件路径
 `define VCD_FILEPATH "prj/icarus/wave.vcd"
@@ -8,9 +8,6 @@
 
 // ANSI 颜色定义
 // `define COLORFUL
-
-// SystemVerilog支持 assert 语句
-// 用于在仿真过程中检查条件是否为真
 
 `ifdef COLORFUL
 
@@ -73,6 +70,10 @@
 
 `endif
 
+// 配置选项
+`define INITIAL_PC 32'h0000_0000  // 初始PC地址
+// `define INITIAL_PC 32'h8000_0000
+
 // verilog_format: off
 // ================== 指令集 定义 ==================
     `define OPCODE_RTYPE        7'b0110011
@@ -117,15 +118,6 @@
     `define FUNCT3_SB           3'h0
     `define FUNCT3_SH           3'h1
     `define FUNCT3_SW           3'h2
-
-// ================== F3-CSR 定义 ==================
-    `define FUNCT3_CSRRC        3'h3
-    `define FUNCT3_CSRRCI       3'h7
-    `define FUNCT3_CSRRS        3'h2
-    `define FUNCT3_CSRRSI       3'h6
-    `define FUNCT3_CSRRW        3'h1
-    `define FUNCT3_CSRRWI       3'h5
-    `define FUNCT3_CALL         3'h0
 
 // ================== Funct7 定义 ==================
     `define FUNCT7_SLLI         7'b0000000
@@ -215,7 +207,9 @@
     `define MEM_LW              4'b00_11
     `define MEM_LBU             4'b01_01
     `define MEM_LHU             4'b01_10
-    `define MEM_STORE           4'b10_00
+    `define MEM_SB              4'b10_01
+    `define MEM_SH              4'b10_10
+    `define MEM_SW              4'b10_11
 
 // ================== CSR    定义 ==================
     `define CSR_MSTATUS        12'h300
@@ -228,6 +222,15 @@
     `define CSR_CYCLEH         12'hC80
     `define CSR_INSTRET        12'hC02
     `define CSR_INSTRETH       12'hC82
+
+// ================== F3-CSR 定义 ==================
+    `define FUNCT3_CSRRC        3'h3
+    `define FUNCT3_CSRRCI       3'h7
+    `define FUNCT3_CSRRS        3'h2
+    `define FUNCT3_CSRRSI       3'h6
+    `define FUNCT3_CSRRW        3'h1
+    `define FUNCT3_CSRRWI       3'h5
+    `define FUNCT3_CALL         3'h0
 
 //verilog_format: on
 

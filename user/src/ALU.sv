@@ -37,10 +37,15 @@ module ALU (
             `ALU_SLT:   alu_result = ($signed(src1) < $signed(src2_inner)) ? 1 : 0;
             `ALU_SLTU:  alu_result = (src1 < src2_inner) ? 1 : 0;
             `ALU_RIGHT: alu_result = src2_inner;  // 用于AUIPC指令
-            // L-Type
-            `ALU_LW:    alu_result = src1 + src2_inner;  // 地址计算
-            // [TODO] 非对齐访存
-            //S-Type
+            // L-Type：所有load指令都是地址计算(base + offset)
+            `ALU_LB,
+            `ALU_LH,
+            `ALU_LW,
+            `ALU_LBU,
+            `ALU_LHU:   alu_result = src1 + src2_inner;  // 地址计算
+            // S-Type：所有store指令都是地址计算
+            `ALU_SB,
+            `ALU_SH,
             `ALU_SW:    alu_result = src1 + src2_inner;  // 地址计算
             default:    alu_result = 0;
         endcase
@@ -72,7 +77,13 @@ module ALU (
             `ALU_SLT:   aluop_ascii = "ASLT";
             `ALU_SLTU:  aluop_ascii = "ASLTU";
             `ALU_RIGHT: aluop_ascii = "ARGHT";
+            `ALU_LB:    aluop_ascii = "ALB";
+            `ALU_LH:    aluop_ascii = "ALH";
             `ALU_LW:    aluop_ascii = "ALW";
+            `ALU_LBU:   aluop_ascii = "ALBU";
+            `ALU_LHU:   aluop_ascii = "ALHU";
+            `ALU_SB:    aluop_ascii = "ASB";
+            `ALU_SH:    aluop_ascii = "ASH";
             `ALU_SW:    aluop_ascii = "ASW";
             default:    aluop_ascii = "ANOP";
         endcase

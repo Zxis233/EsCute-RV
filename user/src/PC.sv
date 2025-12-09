@@ -1,3 +1,5 @@
+`include "include/defines.svh"
+
 module PC (
     input  logic        clk,
     input  logic        rst_n,
@@ -19,7 +21,7 @@ module PC (
     end
 
     always_ff @(posedge clk or negedge rst_n) begin
-        if (!rst_n)       pc_if <= 0;
+        if (!rst_n)       pc_if <= `INITIAL_PC;
         else if (keep_pc) pc_if <= pc_if;
         else              pc_if <= npc;
     end

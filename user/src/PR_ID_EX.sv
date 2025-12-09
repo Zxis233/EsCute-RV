@@ -54,8 +54,8 @@ module PR_ID_EX (
     input  logic [ 1:0] jump_type_id_i,
     output logic [ 1:0] jump_type_ex_o,
     // 读取类型
-    input  logic [ 1:0] load_type_id_i,
-    output logic [ 1:0] load_type_ex_o,
+    input  logic [ 3:0] sl_type_id_i,
+    output logic [ 3:0] sl_type_ex_o,
     // 立即数
     input  logic [31:0] imm_id_i,
     output logic [31:0] imm_ex_o,
@@ -63,18 +63,18 @@ module PR_ID_EX (
     input  logic [31:0] pc_jump_id_i,
     output logic [31:0] pc_jump_ex_o,
     // 加上前递相关
-    input               fwd_rD1e_ID,
-    input               fwd_rD2e_ID,
-    input  logic [31:0] fwd_rD1_ID,
-    input  logic [31:0] fwd_rD2_ID
+    input               fwd_rD1e_EX,
+    input               fwd_rD2e_EX,
+    input  logic [31:0] fwd_rD1_EX,
+    input  logic [31:0] fwd_rD2_EX
 );
 
     // 前递信号与数据
     logic [31:0] rD1_forwarded, rD2_forwarded;
     // 考虑了前递就不需要冲刷了
     always_comb begin
-        rD1_forwarded = fwd_rD1e_ID ? fwd_rD1_ID : rD1_i;
-        rD2_forwarded = fwd_rD2e_ID ? fwd_rD2_ID : rD2_i;
+        rD1_forwarded = fwd_rD1e_EX ? fwd_rD1_EX : rD1_i;
+        rD2_forwarded = fwd_rD2e_EX ? fwd_rD2_EX : rD2_i;
     end
 
     // 寄存器堆数据
@@ -87,20 +87,6 @@ module PR_ID_EX (
             rD2_o <= rD2_forwarded;
         end
     end
-
-    // verilog_format: off
-    // always_ff @(posedge clk or negedge rst_n) begin
-    //     if (!rst_n)             rD1_o <= 32'b0;
-    //     else if (fwd_rD1e_ID)   rD1_o <= fwd_rD1_ID;
-    //     else                    rD1_o <= rD1_i;
-    // end
-
-    // always_ff @(posedge clk or negedge rst_n) begin
-    //     if (!rst_n)             rD2_o <= 32'b0;
-    //     else if (fwd_rD2e_ID)   rD2_o <= fwd_rD2_ID;
-    //     else                    rD2_o <= rD2_i;
-    // end
-    // verilog_format: on
 
     // 分支跳转相关
     always_ff @(posedge clk or negedge rst_n) begin
@@ -126,21 +112,21 @@ module PR_ID_EX (
             is_auipc_ex_o     <= 1'b0;
             alu_src2_sel_ex_o <= 1'b0;
             dram_we_ex_o      <= 1'b0;
-            load_type_ex_o    <= 2'b0;
+            sl_type_ex_o      <= 3'b0;
             imm_ex_o          <= 32'b0;
         end else if (flush) begin
             alu_op_ex_o       <= 4'b0;
             is_auipc_ex_o     <= 1'b0;
             alu_src2_sel_ex_o <= 1'b0;
             dram_we_ex_o      <= 1'b0;
-            load_type_ex_o    <= load_type_id_i;
+            sl_type_ex_o      <= sl_type_id_i;
             imm_ex_o          <= 32'b0;
         end else begin
             alu_op_ex_o       <= alu_op_id_i;
             is_auipc_ex_o     <= is_auipc_id_i;
             alu_src2_sel_ex_o <= alu_src2_sel_id_i;
             dram_we_ex_o      <= dram_we_id_i;
-            load_type_ex_o    <= load_type_id_i;
+            sl_type_ex_o      <= sl_type_id_i;
             imm_ex_o          <= imm_id_i;
         end
     end

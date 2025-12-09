@@ -18,7 +18,7 @@ module Decoder (
     // 跳转相关
     output logic [ 1:0] jump_type,
     // 数据读取类型
-    output logic [ 1:0] load_type,
+    output logic [ 3:0] sl_type,
     // 源寄存器是否在使用
     output logic        rs1_used,
     output logic        rs2_used
@@ -154,11 +154,7 @@ module Decoder (
             `OPCODE_RTYPE, `OPCODE_ITYPE: begin
                 unique case (funct3)
                     `FUNCT3_ADD_SUB_MUL:
-                    // [HACK] 使用 case-true 结构
-                    // alu_op = (opcode == `OPCODE_RTYPE ?
-                    //           ((funct7 == `FUNCT7_SUB) ?
-                    //                                  `ALU_SUB : `ALU_ADD)
-                    //                                : `ALU_ADD);
+                    // 使用 case-true 结构
                         case (1'b1)
                             (opcode == `OPCODE_RTYPE) &&        // R-Type SUB
                             (funct7 == `FUNCT7_SUB):
@@ -231,6 +227,33 @@ module Decoder (
         endcase
     end
     // verilog_format:on
+
+    // 数据存取类型判断
+    // verilog_format:off
+    always_comb begin : sl_selection
+        unique case (opcode)
+            `OPCODE_LTYPE: begin
+                case (funct3)
+                    `FUNCT3_LB:     sl_type = `MEM_LB;
+                    `FUNCT3_LBU:    sl_type = `MEM_LBU;
+                    `FUNCT3_LH:     sl_type = `MEM_LH;
+                    `FUNCT3_LHU:    sl_type = `MEM_LHU;
+                    `FUNCT3_LW:     sl_type = `MEM_LW;
+                    default:        sl_type = `MEM_NOP;
+                endcase
+            end
+
+            `OPCODE_STYPE:begin
+                case (funct3)
+                    `FUNCT3_SB:     sl_type = `MEM_SB;
+                    `FUNCT3_SH:     sl_type = `MEM_SH;
+                    `FUNCT3_SW:     sl_type = `MEM_SW;
+                    default:        sl_type = `MEM_NOP;
+                endcase
+            end
+            default:                sl_type = `MEM_NOP;
+        endcase
+    end
 
     // 可视化输出判断
     //verilog_format:off

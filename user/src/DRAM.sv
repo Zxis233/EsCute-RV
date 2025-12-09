@@ -6,7 +6,7 @@ module DRAM (
     input  logic        clk,  // 时钟
     input  logic [15:0] a,    // 地址输入 (16位 = 64K words)
     output logic [31:0] spo,  // 数据输出
-    input  logic        we,   // 写使能
+    input  logic [ 3:0] we,   // [FIXME] 按位写使能
     input  logic [31:0] din   // 数据输入
 );
 
@@ -28,11 +28,10 @@ module DRAM (
         if (we) begin
             ram_data[a] <= din;
             $display("%0t\t| 0x%4h <| 0x%h\t|[MEM W]", $time, a, din);
-        end
-        spo <= ram_data[a];  // [FIXME] 同步读
-        if (!we) begin
+        end else begin
             $display("%0t\t| 0x%4h |> 0x%h\t|[MEM R]", $time, a, ram_data[a]);
         end
+        spo <= ram_data[a];  // 同步读
     end
 
 endmodule

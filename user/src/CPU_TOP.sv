@@ -6,6 +6,7 @@ module CPU_TOP (
     // 来自指令存储器IROM的指令
     input  logic [31:0] instr,
     // 输出给指令存储器IROM的地址
+    // 这里实际上是PC的高14位
     output logic [13:0] pc
 );
 
@@ -37,7 +38,7 @@ module CPU_TOP (
     logic          is_branch_instr_ID, is_branch_instr_EX;
     logic [2:0]        branch_type_ID,     branch_type_EX;
     logic [1:0]          jump_type_ID,       jump_type_EX;
-    logic [1:0]          load_type_ID,       load_type_EX,      load_type_MEM;
+    logic [3:0]            sl_type_ID,         sl_type_EX,         sl_type_MEM;
     // 已扩展后的立即数
     logic [31:0]               imm_ID,             imm_EX;
     // 分支目标地址/AUIPC计算地址
@@ -48,12 +49,12 @@ module CPU_TOP (
     logic flush_IF_ID, flush_ID_EX;
     logic keep_PC, stall_IF_ID;
 // ================= 各级之间的信号 ===================
-    // verilog_format:on
+
 
     assign instr_IF = instr;
     assign pc       = pc_IF[15:2];
 
-    // IF级
+// IF级
 
     // PC寄存器
     logic        take_branch_NextPC;
@@ -68,7 +69,7 @@ module CPU_TOP (
         .pc4_if       (pc4_IF)
     );
 
-    // ================= IF/ID 流水线寄存器 ===================
+// ================= IF/ID 流水线寄存器 ===================
 
     assign valid_IF = (pc_IF >= 0);  // 复位时指令无效
 
@@ -92,7 +93,7 @@ module CPU_TOP (
         .instr_valid_id_o(valid_ID)
     );
 
-    // ID级
+// ID级
 
     assign wR_ID = instr_ID[11:7];
 
@@ -140,18 +141,18 @@ module CPU_TOP (
         .is_branch_instr(is_branch_instr_ID),
         .branch_type    (branch_type_ID),
         .jump_type      (jump_type_ID),
-        .load_type      (load_type_ID),
+        .sl_type        (sl_type_ID),
         .rs1_used       (rs1_used_ID),
         .rs2_used       (rs2_used_ID)
     );
 
-    // ================= ID/EX 流水线寄存器 ===================
+// ================= ID/EX 流水线寄存器 ===================
 
     // 前递信号与数据
-    logic        fwd_rD1e_ID;
-    logic        fwd_rD2e_ID;
-    logic [31:0] fwd_rD1_ID;
-    logic [31:0] fwd_rD2_ID;
+    logic        fwd_rD1e_EX;
+    logic        fwd_rD2e_EX;
+    logic [31:0] fwd_rD1_EX;
+    logic [31:0] fwd_rD2_EX;
 
     PR_ID_EX u_PR_ID_EX (
         .clk                 (clk),
@@ -205,8 +206,8 @@ module CPU_TOP (
         .jump_type_id_i      (jump_type_ID),
         .jump_type_ex_o      (jump_type_EX),
         // 读取类型
-        .load_type_id_i      (load_type_ID),
-        .load_type_ex_o      (load_type_EX),
+        .sl_type_id_i        (sl_type_ID),
+        .sl_type_ex_o        (sl_type_EX),
         // 立即数
         .imm_id_i            (imm_ID),
         .imm_ex_o            (imm_EX),
@@ -214,13 +215,13 @@ module CPU_TOP (
         .pc_jump_id_i        (branch_target_ID),
         .pc_jump_ex_o        (branch_target_EX),
         // 前递相关
-        .fwd_rD1e_ID         (fwd_rD1e_ID),
-        .fwd_rD2e_ID         (fwd_rD2e_ID),
-        .fwd_rD1_ID          (fwd_rD1_ID),
-        .fwd_rD2_ID          (fwd_rD2_ID)
+        .fwd_rD1e_EX         (fwd_rD1e_EX),
+        .fwd_rD2e_EX         (fwd_rD2e_EX),
+        .fwd_rD1_EX          (fwd_rD1_EX),
+        .fwd_rD2_EX          (fwd_rD2_EX)
     );
 
-    // EX 级
+// EX 级
 
     // ALU
     logic alu_zero;
@@ -267,7 +268,7 @@ module CPU_TOP (
         endcase
     end
 
-    // ================= EX/MEM 流水线寄存器 ===================
+// ================= EX/MEM 流水线寄存器 ===================
 
     logic [31:0] rf_wd_MEM_PR2MUX;
     PR_EX_MEM u_PR_EX_MEM (
@@ -291,14 +292,15 @@ module CPU_TOP (
         .wd_mem_o         (rf_wd_MEM_PR2MUX),
         .rD2_ex_i         (rf_rd2_EX),
         .rD2_mem_o        (rf_rd2_MEM),
-        .load_type_ex_i   (load_type_EX),
-        .load_type_mem_o  (load_type_MEM)
+        .sl_type_ex_i     (sl_type_EX),
+        .sl_type_mem_o    (sl_type_MEM)
     );
 
-    // MEM 级
+// MEM 级
 
     // DRAM模块
     logic [31:0] DRAM_output_data;
+    logic [3:0] dram_we_MEM_strbe;
 
     DRAM u_DRAM (
         .clk(clk),
@@ -312,7 +314,7 @@ module CPU_TOP (
     // 将数据传递到WB级，在WB级进行选择
     assign rf_wd_MEM = rf_wd_MEM_PR2MUX;
 
-    // ================= MEM/WB 流水线寄存器 ===================
+// ================= MEM/WB 流水线寄存器 ===================
 
     logic [31:0] DRAM_data_WB;
     logic [31:0] rf_wd_WB_from_PR;
@@ -344,7 +346,7 @@ module CPU_TOP (
         .wd_sel_wb_o      (wd_sel_WB)
     );
 
-    // WB 级
+// WB 级
     // 回写数据来源选择MUX
     // 对于同步DRAM，DRAM的spo已经是寄存器输出，在WB级直接使用以避免多余延迟
     // DRAM_output_data在整个WB周期内保持稳定，可以安全地被寄存器堆采样
@@ -376,11 +378,57 @@ module CPU_TOP (
         .stall_IF_ID       (stall_IF_ID),
         .flush_IF_ID       (flush_IF_ID),
         .flush_ID_EX       (flush_ID_EX),
-        .fwd_rD1e_ID       (fwd_rD1e_ID),
-        .fwd_rD2e_ID       (fwd_rD2e_ID),
-        .fwd_rD1_ID        (fwd_rD1_ID),
-        .fwd_rD2_ID        (fwd_rD2_ID)
+        .fwd_rD1e_EX       (fwd_rD1e_EX),
+        .fwd_rD2e_EX       (fwd_rD2e_EX),
+        .fwd_rD1_EX        (fwd_rD1_EX),
+        .fwd_rD2_EX        (fwd_rD2_EX)
     );
 
+    // 断言检查
+    always_comb begin
+        if ($time > 0) begin
+            assert (pc_IF[1:0] == 2'b00)
+            else $error("CPU_TOP Error: PC is not word-aligned! PC=0x%h", pc_IF);
+            assert (!(dram_we_ID && rf_we_ID))
+            else $error("[%0t] Decoder Error: dram_we and rf_we are both high!", $time);
+            if (!rst_n) begin
+                assert (pc_IF >= `INITIAL_PC)
+                else
+                    $error("CPU_TOP Error: PC is less than INITIAL_PC after reset! PC=0x%h", pc_IF);
+            end
+        end
+    end
+
+    always_ff @(posedge clk) begin
+        if (rst_n) begin
+            // load: 读内存/写寄存器 不写内存
+            if (alu_op_ID == `ALU_LW || alu_op_ID == `ALU_LH || alu_op_ID == `ALU_LB ||
+                alu_op_ID == `ALU_LHU || alu_op_ID == `ALU_LBU) begin
+                assert (!dram_we_ID && rf_we_ID)
+                else $error("[FATAL] LOAD INCONSISTENT");
+            end
+            // store: 写内存 不写寄存器
+            if (alu_op_ID == `ALU_SW || alu_op_ID == `ALU_SH || alu_op_ID == `ALU_SB) begin
+                assert (dram_we_ID && !rf_we_ID)
+                else $error("[FATAL] STORE INCONSISTENT");
+            end
+            // branch: 不读/写内存
+            if (is_branch_instr_ID) begin
+                assert (!dram_we_ID && !rf_we_ID)
+                else $error("[FATAL] BRANCH INCONSISTENT");
+            end
+            // ALU_OP 不应为X
+            assert (alu_op_ID[0] !== 1'bx && alu_op_ID[1] !== 1'bx && alu_op_ID[2] !== 1'bx &&
+                    alu_op_ID[3] !== 1'bx && alu_op_ID[4] !== 1'bx)
+            else $error("[FATAL] ALU_OP X detected in ID stage");
+        end
+    end
+
+`ifdef YOSYS
+    property pc_reset_stable;
+        @(posedge clk) (!rst_n) |-> (pc_IF == `INITIAL_PC);
+    endproperty
+    assert property (pc_reset_stable);
+`endif
 
 endmodule
