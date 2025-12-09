@@ -330,6 +330,7 @@ module CPU_TOP (
 // ================= MEM/WB 流水线寄存器 ===================
 
     logic [31:0] DRAM_data_WB;
+    logic [31:0] load_data_WB;
     logic [31:0] rf_wd_WB_from_ALU;
     PR_MEM_WB u_PR_MEM_WB (
         .clk              (clk),
@@ -354,6 +355,9 @@ module CPU_TOP (
         // 而是在WB级直接使用DRAM_output_data以避免额外的一个周期延迟
         // .dram_data_mem_i  (DRAM_output_data),
         // .dram_data_wb_o   (DRAM_data_WB),
+        // LSU处理后的加载数据
+        .load_data_mem_i  (load_data_o),
+        .load_data_wb_o   (load_data_WB),
         // 写回数据来源选择信号
         .wd_sel_mem_i     (wd_sel_MEM),
         .wd_sel_wb_o      (wd_sel_WB)
@@ -363,7 +367,7 @@ module CPU_TOP (
     // 回写数据来源选择MUX
     // 对于同步DRAM，DRAM的spo已经是寄存器输出，在WB级直接使用以避免多余延迟
     // DRAM_output_data在整个WB周期内保持稳定，可以安全地被寄存器堆采样
-    assign rf_wd_WB = (wd_sel_WB == `WD_SEL_FROM_DRAM) ? load_data_o : rf_wd_WB_from_ALU;
+    assign rf_wd_WB = (wd_sel_WB == `WD_SEL_FROM_DRAM) ? load_data_WB : rf_wd_WB_from_ALU;
 
     // 冒险控制单元
 

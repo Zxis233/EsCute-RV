@@ -104,26 +104,6 @@ module LoadStoreUnit (
                     store_data_o = 32'b0;
                 end
             endcase
-            case (sl_type[1:0])
-                2'b01: begin  // SB
-                    unique case (addr[1:0])
-                        2'b00:   wstrb = 4'b0001;
-                        2'b01:   wstrb = 4'b0010;
-                        2'b10:   wstrb = 4'b0100;
-                        2'b11:   wstrb = 4'b1000;
-                        default: wstrb = 4'b0000;
-                    endcase
-                end
-                2'b10: begin  // SH
-                    unique case (addr[1])
-                        1'b0:    wstrb = 4'b0011;
-                        1'b1:    wstrb = 4'b1100;
-                        default: wstrb = 4'b0000;
-                    endcase
-                end
-                2'b11:   wstrb = 4'b1111;  // SW
-                default: wstrb = 4'b0000;
-            endcase
         end else begin
             // 非 load/非 store：保持默认 wstrb=0, store_data_o 已初始化为 0
         end

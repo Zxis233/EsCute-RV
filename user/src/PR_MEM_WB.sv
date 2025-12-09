@@ -22,6 +22,9 @@ module PR_MEM_WB (
     // 同步读DRAM时的额外数据
     input  logic [31:0] dram_data_mem_i,
     output logic [31:0] dram_data_wb_o,
+    // LSU处理后的加载数据
+    input  logic [31:0] load_data_mem_i,
+    output logic [31:0] load_data_wb_o,
     // 写回数据来源 用于在WB级选择
     input  logic [ 1:0] wd_sel_mem_i,
     output logic [ 1:0] wd_sel_wb_o
@@ -35,6 +38,7 @@ module PR_MEM_WB (
             wr_wb_o          <= 5'b0;
             wd_wb_o          <= 32'b0;
             dram_data_wb_o   <= 32'b0;
+            load_data_wb_o   <= 32'b0;
             wd_sel_wb_o      <= 2'b0;
         end else begin
             pc_wb_o          <= pc_mem_i;
@@ -43,6 +47,7 @@ module PR_MEM_WB (
             wr_wb_o          <= wr_mem_i;
             wd_wb_o          <= wd_mem_i;
             dram_data_wb_o   <= dram_data_mem_i;
+            load_data_wb_o   <= load_data_mem_i;
             wd_sel_wb_o      <= wd_sel_mem_i;
         end
     end
