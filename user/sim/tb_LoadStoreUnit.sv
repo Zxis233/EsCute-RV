@@ -1,4 +1,5 @@
-`include "../src/LoadStoreUnit.sv"
+`include "include/defines.svh"
+`include "LoadStoreUnit.sv"
 
 module tb_LoadStoreUnit ();
     // 测试信号
