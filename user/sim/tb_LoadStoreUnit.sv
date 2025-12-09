@@ -1,6 +1,7 @@
 `include "include/defines.svh"
-`include "LoadStoreUnit.sv"
 
+// Note: When compiling from user/src directory, LoadStoreUnit.sv is in current dir
+// When using iverilog: cd user/src && iverilog -I ./include ../sim/tb_LoadStoreUnit.sv
 module tb_LoadStoreUnit ();
     // 测试信号
     logic [ 3:0] sl_type;
