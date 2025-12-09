@@ -1,7 +1,7 @@
 # EsCute 极简五级流水线RV32I实现
 
 
-本分支在主分支的基础上，将同步读异步写的DRAM更换为同步读写的DRAM，以适配部分FPGA的Block RAM，便于综合。
+本分支在SDRAM的基础上，添加了[LoadStoreUnit.sv](user/src/LoadStoreUnit.sv)模块，用于处理字节和半字的访存操作。
 
 - [x] 实现RV32I指令集的五级流水线CPU  
 - [x] 支持流水线停顿与数据前推  
