@@ -38,13 +38,13 @@ module CPU_TOP (
     logic          is_branch_instr_ID, is_branch_instr_EX;
     logic [2:0]        branch_type_ID,     branch_type_EX;
     logic [1:0]          jump_type_ID,       jump_type_EX;
-    logic [3:0]            sl_type_ID,         sl_type_EX,         sl_type_MEM;
+    logic [3:0]            sl_type_ID,         sl_type_EX,         sl_type_MEM,        sl_type_WB;
     // 已扩展后的立即数
     logic [31:0]               imm_ID,             imm_EX;
     // 分支目标地址/AUIPC计算地址
     logic [31:0]     branch_target_ID,   branch_target_EX;
     // ALU结果
-    logic [31:0]                            alu_result_EX,      alu_result_MEM;
+    logic [31:0]                            alu_result_EX,      alu_result_MEM,     alu_result_WB;
 
     logic flush_IF_ID, flush_ID_EX;
     logic keep_PC, stall_IF_ID;
@@ -332,38 +332,60 @@ module CPU_TOP (
     logic [31:0] DRAM_data_WB;
     logic [31:0] rf_wd_WB_from_ALU;
     PR_MEM_WB u_PR_MEM_WB (
-        .clk              (clk),
-        .rst_n            (rst_n),
+        .clk               (clk),
+        .rst_n             (rst_n),
         // MEM级输入
-        .pc_mem_i         (pc_MEM),
+        .pc_mem_i          (pc_MEM),
         // MEM级输出 给WB级输入
-        .pc_wb_o          (pc_WB),
-        .instr_valid_mem_i(valid_MEM),
-        .instr_valid_wb_o (valid_WB),
+        .pc_wb_o           (pc_WB),
+        .instr_valid_mem_i (valid_MEM),
+        .instr_valid_wb_o  (valid_WB),
         // 寄存器堆写使能
-        .rf_we_mem_i      (rf_we_MEM),
-        .rf_we_wb_o       (rf_we_WB),
+        .rf_we_mem_i       (rf_we_MEM),
+        .rf_we_wb_o        (rf_we_WB),
         // 写回寄存器地址
-        .wr_mem_i         (wR_MEM),
-        .wr_wb_o          (wR_WB),
+        .wr_mem_i          (wR_MEM),
+        .wr_wb_o           (wR_WB),
         // 写回数据
-        .wd_mem_i         (rf_wd_MEM),
-        .wd_wb_o          (rf_wd_WB_from_ALU),
+        .wd_mem_i          (rf_wd_MEM),
+        .wd_wb_o           (rf_wd_WB_from_ALU),
         // DRAM数据（同步读）
         // 注意：DRAM的spo输出已经是寄存器输出，但我们不在PR_MEM_WB中再次寄存
         // 而是在WB级直接使用DRAM_output_data以避免额外的一个周期延迟
-        // .dram_data_mem_i  (DRAM_output_data),
-        // .dram_data_wb_o   (DRAM_data_WB),
+        .dram_data_mem_i   (DRAM_output_data),
+        .dram_data_wb_o    (DRAM_data_WB),
         // 写回数据来源选择信号
-        .wd_sel_mem_i     (wd_sel_MEM),
-        .wd_sel_wb_o      (wd_sel_WB)
+        .wd_sel_mem_i      (wd_sel_MEM),
+        .wd_sel_wb_o       (wd_sel_WB),
+        // 存取类型 用于在WB级处理加载数据
+        .sl_type_mem_i     (sl_type_MEM),
+        .sl_type_wb_o      (sl_type_WB),
+        // ALU结果(地址) 用于在WB级处理加载数据
+        .alu_result_mem_i  (alu_result_MEM),
+        .alu_result_wb_o   (alu_result_WB)
     );
 
 // WB 级
+    // LoadStoreUnit模块用于处理加载数据
+    // 对于同步DRAM，DRAM的spo输出已经是寄存器输出
+    // DRAM_data_WB 是通过 PR_MEM_WB 传递过来的 DRAM 输出数据
+    // sl_type_WB 和 alu_result_WB 也通过 PR_MEM_WB 传递，确保时序匹配
+    logic [31:0] load_data_WB;
+    logic [31:0] unused_store_data_WB;
+    logic [3:0]  unused_wstrb_WB;
+    LoadStoreUnit u_LoadStoreUnit_WB(
+        .sl_type       (sl_type_WB),
+        .addr          (alu_result_WB),
+        .load_data_i   (DRAM_data_WB),
+        .load_data_o   (load_data_WB),
+        .store_data_i  (32'b0),           // 不使用，WB级不做存储
+        .store_data_o  (unused_store_data_WB),
+        .dram_we       (1'b0),            // 不使用，WB级不做存储
+        .wstrb         (unused_wstrb_WB)
+    );
+
     // 回写数据来源选择MUX
-    // 对于同步DRAM，DRAM的spo已经是寄存器输出，在WB级直接使用以避免多余延迟
-    // DRAM_output_data在整个WB周期内保持稳定，可以安全地被寄存器堆采样
-    assign rf_wd_WB = (wd_sel_WB == `WD_SEL_FROM_DRAM) ? load_data_o : rf_wd_WB_from_ALU;
+    assign rf_wd_WB = (wd_sel_WB == `WD_SEL_FROM_DRAM) ? load_data_WB : rf_wd_WB_from_ALU;
 
     // 冒险控制单元
 

@@ -44,7 +44,7 @@ module PR_EX_MEM (
             alu_result_mem_o  <= 32'b0;
             wd_mem_o          <= 32'b0;
             rD2_mem_o         <= 32'b0;
-            sl_type_mem_o     <= 3'b0;
+            sl_type_mem_o     <= 4'b0;
         end else begin
             pc_mem_o          <= pc_ex_i;
             instr_valid_mem_o <= instr_valid_ex_i;

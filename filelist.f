@@ -10,6 +10,7 @@ read_slang
 ./user/src/ALU.sv 
 ./user/src/NextPC_Generator.sv 
 ./user/src/PR_EX_MEM.sv 
+./user/src/LoadStoreUnit.sv 
 ./user/src/DRAM.sv 
 ./user/src/PR_MEM_WB.sv 
 ./user/src/HazardUnit.sv 
