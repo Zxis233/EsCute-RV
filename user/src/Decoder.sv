@@ -70,11 +70,6 @@ module Decoder (
     // });
 
 
-    // 分支类型判断
-    // 看funct3决定具体的分支类型
-    // assign is_branch_instr = (opcode == `OPCODE_BTYPE);
-    // assign branch_type = funct3;
-
     // ALU 第一操作数来源
     // 判断是否为 AUIPC 指令即可
     assign is_auipc = (opcode == `OPCODE_AUIPC);

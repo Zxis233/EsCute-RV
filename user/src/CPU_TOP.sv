@@ -53,11 +53,12 @@ module CPU_TOP (
     logic keep_PC, stall_IF_ID;
 // ================= 各级之间的信号 ===================
 
-
-    assign instr_IF = instr;
-    assign pc       = pc_IF[15:2];
-
 // IF级
+
+    // 指令输入与PC输出
+    assign instr_IF = instr;
+    // 这里取PC的高14位作为IROM地址 这样输出的地址就是字地址
+    assign pc       = pc_IF[15:2];
 
     // PC寄存器
     logic        take_branch_NextPC;
@@ -230,7 +231,6 @@ module CPU_TOP (
     logic alu_zero;
     logic alu_sign;
     logic alu_unsigned;
-
     ALU u_ALU (
         .alu_op      (alu_op_EX),
         .src1        (rf_rd1_EX),
