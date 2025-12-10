@@ -34,8 +34,6 @@ module DRAM (
     always_ff @(posedge clk) begin
         if (we) begin
             ram_data[a] <= din;
-            // $display("[DRAM Write] addr=0x%04h, data=0x%08h", a, din);
-            $display("%0t\t| 0x%4h <| 0x%h\t|[MEM]", $time, a, din);
         end
         // spo <= ram_data[a];  // [FIXME] 同步读
     end

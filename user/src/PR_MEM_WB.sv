@@ -1,5 +1,3 @@
-`include "include/defines.svh"
-
 module PR_MEM_WB (
     input  logic        clk,
     input  logic        rst_n,

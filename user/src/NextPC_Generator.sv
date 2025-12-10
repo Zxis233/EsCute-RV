@@ -35,15 +35,6 @@ module NextPC_Generator (
 
     end
 
-
-    // always_comb begin
-    //     case (jump_type)
-    //         `JUMP_JAL:  branch_target = {alu_result[31:1], 1'b0};
-    //         `JUMP_JALR: branch_target = pc_jump;
-    //         default:    branch_target = pc_jump;
-    //     endcase
-    // end
-
     // JALR 需要将最低位置0
     assign branch_target_NextPC = (jump_type == `JUMP_JALR) ?
                                   {alu_result[31:1], 1'b0} : branch_target_i;

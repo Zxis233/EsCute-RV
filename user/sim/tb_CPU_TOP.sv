@@ -1,7 +1,7 @@
 `timescale 1ns / 1ps
 
 `include "../src/CPU_TOP.sv"
-`define DEBUG
+`define DEBUG 
 
 `define REG_FILE u_CPU_TOP.u_registerf
 
@@ -131,11 +131,25 @@ module tb_CPU_TOP;
                 // EX 级
                 if (u_CPU_TOP.valid_EX)
                     $display(
-                        "%0t\t| %h\t| --------\t| EX (ALU=%h)",
+                        "%0t\t| %h\t| --------\t| EX \t (ALU=0x%h)",
                         $time,
                         u_CPU_TOP.pc_EX,
                         u_CPU_TOP.alu_result_EX
                     );
+
+                // MEM 级
+                if (u_CPU_TOP.dram_we_MEM) begin
+                    $display("%0t\t| 0x%4h <| 0x%h\t|[MEM W]", $time,
+                             u_CPU_TOP.alu_result_MEM[17:2], u_CPU_TOP.rf_rd2_MEM);
+                end else begin
+                    if (u_CPU_TOP.wd_sel_MEM)
+                        $display(
+                            "%0t\t| 0x%4h |> 0x%h\t|[MEM R]",
+                            $time,
+                            u_CPU_TOP.alu_result_MEM[17:2],
+                            u_CPU_TOP.DRAM_output_data
+                        );
+                end
             end
         end
     end
