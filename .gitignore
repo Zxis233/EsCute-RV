@@ -10,7 +10,7 @@ user/data/isa/generated
 user/data/isa/verilog
 .vscode/settings.json
 user/tools/__pycache__
-user/src/IROM_local.sv
+slpp_all
 user/sim/tb_CPU_TOP_local.sv
 test.json
 *.dot

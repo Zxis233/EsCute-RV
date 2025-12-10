@@ -74,19 +74,21 @@ module HazardUnit (
     // 优先级 EX > MEM > WB
     // 对于同步DRAM MEM级的load指令数据尚未可用 不能前递
     always_comb begin
+        // case-true 语句
         // 源操作数1前递数据选择
-        if (RAW_1_rD1)                      fwd_rD1_EX = rf_wd_EX;  // 来自EX级
-        else if (RAW_2_rD1 &&
-         wd_sel_MEM != `WD_SEL_FROM_DRAM)   fwd_rD1_EX = rf_wd_MEM; // 来自MEM级（非load）
-        else if (RAW_3_rD1)                 fwd_rD1_EX = rf_wd_WB;  // 来自WB级
-        else                                fwd_rD1_EX = 32'b0;
-
+        case (1'b1)
+            RAW_1_rD1: fwd_rD1_EX = rf_wd_EX;  // 来自EX级
+            RAW_2_rD1: fwd_rD1_EX = rf_wd_MEM; // 来自MEM级
+            RAW_3_rD1: fwd_rD1_EX = rf_wd_WB;
+            default:   fwd_rD1_EX = 32'b0;
+        endcase
         // 源操作数2前递数据选择
-        if (RAW_1_rD2)                      fwd_rD2_EX = rf_wd_EX;  // 来自EX级
-        else if (RAW_2_rD2 &&
-         wd_sel_MEM != `WD_SEL_FROM_DRAM)   fwd_rD2_EX = rf_wd_MEM; // 来自MEM级（非load）
-        else if (RAW_3_rD2)                 fwd_rD2_EX = rf_wd_WB;  // 来自WB级
-        else                                fwd_rD2_EX = 32'b0;
+        case (1'b1)
+            RAW_1_rD2: fwd_rD2_EX = rf_wd_EX;  // 来自EX级
+            RAW_2_rD2: fwd_rD2_EX = rf_wd_MEM; // 来自MEM级
+            RAW_3_rD2: fwd_rD2_EX = rf_wd_WB;
+            default:   fwd_rD2_EX = 32'b0;
+        endcase
     end
     // verilog_format: on
 
@@ -114,9 +116,9 @@ module HazardUnit (
 
     // 流水线冲刷与停顿
     always_comb begin
-        keep_pc     = load_use_hazard ? 1'b1 : 1'b0;
-        stall_IF_ID = load_use_hazard ? 1'b1 : 1'b0;
-        flush_IF_ID = branch_predicted_result ? 1'b1 : 1'b0;
+        keep_pc     = load_use_hazard                              ? 1'b1 : 1'b0;
+        stall_IF_ID = load_use_hazard                              ? 1'b1 : 1'b0;
+        flush_IF_ID = branch_predicted_result                      ? 1'b1 : 1'b0;
         flush_ID_EX = (branch_predicted_result || load_use_hazard) ? 1'b1 : 1'b0;
     end
 

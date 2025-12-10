@@ -16,7 +16,9 @@ module tb_CPU_TOP;
     logic [31:0] irom_data;
 
     // 实例化 IROM (指令存储器)
-    IROM u_IROM (
+    IROM #(
+        .ADDR_WIDTH(14)
+    ) u_IROM (
         .a  (irom_addr),
         .spo(irom_data)
     );

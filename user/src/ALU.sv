@@ -51,9 +51,6 @@ module ALU (
         endcase
     end
 
-    // Load/Store指令使用的地址计算不放在ALU内
-    // 拆分为独立模块 LoadStoreUnit
-
     // 标志位输出
     always_comb begin
         zero         = (alu_result == 32'b0);

@@ -148,7 +148,7 @@ wave:
 # 回归测试 (运行所有测试用例)
 # ========================================
 
-regress_prepare:
+regress_prepare: compile
 	@echo "准备回归测试..."
 	@make compile
 	@rm -f ${RUN_DIR}/*.log
@@ -160,7 +160,7 @@ regress_run:
 	@echo "========================================"
 	@for test in $(ALL_TESTS); do \
 		echo ">>> 测试: $$test"; \
-		make run TESTCASE=$$test DUMPWAVE=0 PRINT_INFO=0 2>&1 | grep -E "\[PASS\]|\[FAIL\]" | tee -a ${RUN_DIR}/regress_summary.txt; \
+		make run TESTCASE=$$test DUMPWAVE=0 PRINT_INFO=0 2>&1 | grep -E "\[PASS\]|\[FAIL\]|\[EROR\]" | tee -a ${RUN_DIR}/regress_summary.txt; \
 	done
 	@echo "========================================"
 	@echo "测试完成! 汇总文件: ${RUN_DIR}/regress_summary.txt"

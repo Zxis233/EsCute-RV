@@ -1,6 +1,6 @@
 `include "include/defines.svh"
 `ifndef CPU_TOP_SV_INCLUDED
-`define CPU_TOP_SV_INCLUDED
+`define CPU_TOP_SV_INCLUDED 
 
 
 module CPU_TOP (
@@ -316,9 +316,10 @@ module CPU_TOP (
         .wstrb         (dram_we_MEM_strbe)
     );
 
-
     // DRAM模块
-    DRAM u_DRAM (
+    DRAM #(
+        .ADDR_WIDTH(15)
+    ) u_DRAM (
         .clk(clk),
         .a  (alu_result_MEM[17:2]),  // 字节地址转换为字地址 (除以4)
         .spo(DRAM_output_data),
@@ -352,11 +353,8 @@ module CPU_TOP (
         // 写回数据
         .wd_mem_i         (rf_wd_MEM),
         .wd_wb_o          (rf_wd_WB_from_ALU),
-        // DRAM数据（同步读）
         // 注意：DRAM的spo输出已经是寄存器输出，但我们不在PR_MEM_WB中再次寄存
         // 而是在WB级直接使用DRAM_output_data以避免额外的一个周期延迟
-        // .dram_data_mem_i  (DRAM_output_data),
-        // .dram_data_wb_o   (DRAM_data_WB),
         // 写回数据来源选择信号
         .wd_sel_mem_i     (wd_sel_MEM),
         .wd_sel_wb_o      (wd_sel_WB),

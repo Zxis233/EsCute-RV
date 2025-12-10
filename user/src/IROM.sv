@@ -1,13 +1,15 @@
 // IROM 行为模型 - 用于仿真
 // 替代 Xilinx IP 核
 
-module IROM (
-    input  logic [13:0] a,   // 地址输入 (14位 = 16K words)
-    output logic [31:0] spo  // 数据输出
+module IROM #(
+    parameter int unsigned ADDR_WIDTH = 14
+) (
+    input  logic [ADDR_WIDTH-1:0] a,   // 地址输入 (14位 = 16K words)
+    output logic [          31:0] spo  // 数据输出
 );
 
     // 指令存储器 - 16K x 32bit
-    logic [31:0] rom_data[16384];
+    logic [31:0] rom_data[1 << ADDR_WIDTH];
 
 `ifdef YOSYS
     logic [255:0] rom_file;  // 字符串缓冲区
@@ -21,7 +23,7 @@ module IROM (
 
         integer i;
 
-        for (i = 0; i < 16384; i = i + 1) begin
+        for (i = 0; i < 1 << ADDR_WIDTH; i = i + 1) begin
             // rom_data[i] = 32'h00000013;  // NOP
             rom_data[i] = 32'h0d000721;
         end
@@ -52,7 +54,7 @@ module IROM (
 `else
         if ($value$plusargs("TESTCASE=%s", testcase)) begin
             // testcase 已经包含完整路径 (从 Makefile 传入)
-            $readmemh(testcase, rom_data, 0, 16383);
+            $readmemh(testcase, rom_data, 0, (1 << ADDR_WIDTH) - 1);
         end
         else if (1) begin
             rom_prefix =

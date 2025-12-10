@@ -16,7 +16,9 @@ module test_tb;
     logic [31:0] irom_data;
 
 // 实例化 IROM (指令存储器)
-    IROM u_IROM (
+    IROM #(
+        .ADDR_WIDTH(14)
+    ) u_IROM (
         .a  (irom_addr),
         .spo(irom_data)
     );
@@ -80,8 +82,6 @@ module test_tb;
     // verilog_format: on
     initial begin
         // 波形文件设置
-        // 寄存器堆监控信号
-
         integer dumpwave;
         if ($value$plusargs("DUMPWAVE=%d", dumpwave)) begin
             if (dumpwave == 1) begin
@@ -96,44 +96,17 @@ module test_tb;
 
         // 初始化信号
         rst_n = 0;
-
         // 复位 CPU
         #5;  // 保持复位 25ns
         rst_n = 1;
-
-        // 运行一段时间让 CPU 执行指令
-        // #50000;
-        // $finish;
-    end
-
-    // 超时保护
-    initial begin
-        #100000;  // 50us 超时
-        $display("[EROR] Simulation timeout!");
-        $finish;
     end
 
     string testcase;
     initial begin
         if ($value$plusargs("TESTCASE=%s", testcase)) begin
-            $display("TESTCASE=%s", testcase);
+            // $display("TESTCASE=%s", testcase);
         end
     end
-
-    // always_comb begin
-    //     case (x17)
-    //         32'h0d000721: begin
-    //             $display("%10t\t| [PASS] |\t%20.20s", $time, testcase);
-    //             $finish;
-    //         end
-    //         32'h1919810: begin
-    //             $display("%10t\t| [FAIL] |\t%20.20s", $time, testcase);
-    //             $finish;
-    //         end
-    //         default: begin
-    //         end
-    //     endcase
-    // end
 
     integer unsigned test_count;
     initial test_count = 0;
@@ -156,6 +129,13 @@ module test_tb;
                 end
             endcase
         end
+    end
+
+    // 超时保护
+    initial begin
+        #100000;  // 50us 超时
+        $display("%10t| [EROR] |TimeOut\t%20s", $time, testcase);
+        $finish;
     end
 
     // 新建一个时钟 为clk的两倍周期 便于观察
