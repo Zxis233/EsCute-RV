@@ -309,17 +309,21 @@ module Decoder (
       end
 
       `OPCODE_ITYPE: begin
-        unique case (funct3)
-          `FUNCT3_ADD_SUB_MUL:  instr_ascii = "ADDI";
-          `FUNCT3_SLL_MULH:     instr_ascii = "SLLI";
-          `FUNCT3_SLT_MULHSU:   instr_ascii = "SLTI";
-          `FUNCT3_SLTU_MULHU:   instr_ascii = "SLTIU";
-          `FUNCT3_XOR_DIV:      instr_ascii = "XORI";
-          `FUNCT3_SRL_SRA_DIVU: instr_ascii = (funct7 == `FUNCT7_SRAI) ? "SRAI" : "SRLI";
-          `FUNCT3_OR_REM:       instr_ascii = "ORI";
-          `FUNCT3_AND_REMU:     instr_ascii = "ANDI";
-          default:              instr_ascii = "I_UNKNOWN";
-        endcase
+        if (instr == 32'h13) begin
+                                  instr_ascii = "NOP";
+        end else begin
+          unique case (funct3)
+            `FUNCT3_ADD_SUB_MUL:  instr_ascii = "ADDI";
+            `FUNCT3_SLL_MULH:     instr_ascii = "SLLI";
+            `FUNCT3_SLT_MULHSU:   instr_ascii = "SLTI";
+            `FUNCT3_SLTU_MULHU:   instr_ascii = "SLTIU";
+            `FUNCT3_XOR_DIV:      instr_ascii = "XORI";
+            `FUNCT3_SRL_SRA_DIVU: instr_ascii = (funct7 == `FUNCT7_SRAI) ? "SRAI" : "SRLI";
+            `FUNCT3_OR_REM:       instr_ascii = "ORI";
+            `FUNCT3_AND_REMU:     instr_ascii = "ANDI";
+            default:              instr_ascii = "I_UNKNOWN";
+          endcase
+        end
       end
 
       `OPCODE_RTYPE: begin
@@ -347,6 +351,8 @@ module Decoder (
           default:              instr_ascii = "R_UNKNOWN";
         endcase
       end
+
+      7'hf:                     instr_ascii = "FENCE";
 
       default:                  instr_ascii = "ERROR";
     endcase

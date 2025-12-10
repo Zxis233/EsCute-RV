@@ -1,5 +1,3 @@
-`include "include/defines.svh"
-
 // [HACK] LoadStoreUnit模块横跨MEM和WB级
 // 可实例化两个LoadStoreUnit模块 分别处理
 module LoadStoreUnit (

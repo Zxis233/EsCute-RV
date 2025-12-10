@@ -2,7 +2,12 @@
 prj/
 sdram/
 user/backup/
-user/data/
+user/data/asm
+user/data/c
+user/data/hex
+user/data/isa/hex
+user/data/isa/generated
+user/data/isa/verilog
 .vscode/settings.json
 user/tools/__pycache__
 user/src/IROM_local.sv

@@ -1,7 +1,7 @@
 `ifndef _DEFINES_V
 `define _DEFINES_V 
 
-`define YOSYS 
+// `define YOSYS 
 
 // 临时文件路径
 `define VCD_FILEPATH "prj/icarus/wave.vcd"
@@ -235,6 +235,5 @@
     `define FUNCT3_CALL         3'h0
 
 //verilog_format: on
-
 
 `endif

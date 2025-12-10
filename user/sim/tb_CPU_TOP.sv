@@ -99,7 +99,7 @@ module tb_CPU_TOP;
         $display("========================================");
 
         // 运行一段时间让 CPU 执行指令
-        #2000;
+        #10000;
 
         $display("========================================");
         $display("Simulation finished at time %0t", $time);
@@ -136,6 +136,20 @@ module tb_CPU_TOP;
                         u_CPU_TOP.pc_EX,
                         u_CPU_TOP.alu_result_EX
                     );
+                // MEM 级
+                if (u_CPU_TOP.dram_we_MEM_strbe != 4'b0000) begin
+                    $display("%0t\t| 0x%4h <| 0x%h\t|[MEM W] (we=%b)", $time,
+                             u_CPU_TOP.alu_result_MEM[17:2], u_CPU_TOP.DRAM_input_data,
+                             u_CPU_TOP.dram_we_MEM_strbe);
+                end else begin
+                    if (u_CPU_TOP.wd_sel_WB)
+                        $display(
+                            "%0t\t| 0x%4h |> 0x%h\t|[MEM R]",
+                            $time,
+                            u_CPU_TOP.alu_result_MEM[17:2],
+                            u_CPU_TOP.DRAM_output_data
+                        );
+                end
             end
         end
     end
@@ -170,7 +184,7 @@ module tb_CPU_TOP;
 
     // 超时保护
     initial begin
-        #5000;  // 50us 超时
+        #100000;  // 50us 超时
         $display("ERROR: Simulation timeout!");
         $finish;
     end

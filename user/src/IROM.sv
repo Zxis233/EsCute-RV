@@ -1,5 +1,3 @@
-`timescale 1ns / 1ps
-
 // IROM 行为模型 - 用于仿真
 // 替代 Xilinx IP 核
 
@@ -14,7 +12,8 @@ module IROM (
 `ifdef YOSYS
     logic [255:0] rom_file;  // 字符串缓冲区
 `else
-    string rom_file;  // 字符串缓冲区
+    string rom_prefix, rom_file;  // 字符串缓冲区
+    string testcase;
 `endif
 
     // 从文件加载指令
@@ -51,27 +50,21 @@ module IROM (
             load_default_program();
         end
 `else
-        if (1) begin
-            rom_file =
-            // "user/data/hex/ls_test.hex"
-            // "user/data/hex/jalr.hex"
-            // "user/data/hex/full_test.hex"
-            // "user/data/hex/full_test_rv.hex"
-            "user/data/hex/full_test.hex"
-            // "user/data/hex/sw_lw.hex"
-            // "user/data/hex/sw.hex"
-            // "user/data/hex/U.hex"
-            // "user/data/hex/simple_test.hex"
-
-            // "user/data/hex/branch.hex"
-            // "user/data/hex/myFirstTest.hex"
-            // "user/data/hex/no_hazard.hex"
-            // "user/data/hex/loaduse_test.hex"
-            // "user/data/hex/hazard.hex"
-            // "user/data/hex/hazard_full.hex"
+        if ($value$plusargs("TESTCASE=%s", testcase)) begin
+            // testcase 已经包含完整路径 (从 Makefile 传入)
+            $readmemh(testcase, rom_data, 0, 16383);
+        end
+        else if (1) begin
+            rom_prefix =
+            "user/data/isa/hex/"
+            // "user/data/hex/"
             ;
-            $readmemh(rom_file, rom_data, 0, 16383);
-            $display("IROM: Loaded instructions from %s", rom_file);
+            rom_file =
+            "rv32ui-p-lw"
+            // "addi"
+            ;
+            $readmemh({rom_prefix,rom_file,".hex"}, rom_data, 0, 16383);
+            $display("IROM: Loaded instructions from %s",{rom_prefix,rom_file,".hex"});
         end else begin
             // 如果没有指定文件,加载默认的测试程序
             $display("IROM: Loading default test program");

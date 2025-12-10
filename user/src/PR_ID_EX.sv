@@ -1,5 +1,3 @@
-`include "include/defines.svh"
-
 module PR_ID_EX (
     input  logic        clk,
     input  logic        rst_n,
