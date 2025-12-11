@@ -15,10 +15,9 @@ module IROM (
     initial begin
 
         integer i;
-        string  rom_file;  // 字符串缓冲区
-
-        // logic   [255:0] rom_file;
-
+`ifndef YOSYS
+        string rom_file;  // 字符串缓冲区
+`endif
 
         for (i = 0; i < 16384; i = i + 1) begin
             // rom_data[i] = 32'h00000013;  // NOP
@@ -43,7 +42,8 @@ module IROM (
             rom_file =
             // "user/data/hex/sw_lw.hex"
             // "user/data/hex/addi.hex"
-            "user/data/hex/branch.hex"
+            // "user/data/hex/branch.hex"
+            "user/data/hex/full_test.hex"
 
             ;
             $readmemh(rom_file, rom_data, 0, 16383);

@@ -22,12 +22,6 @@ module DRAM (
         for (i = 0; i < 65536; i = i + 1) begin
             ram_data[i] = 32'h00000000;
         end
-
-        // 可选: 从文件加载初始数据
-        // if ($value$plusargs("DRAM=%s", ram_file)) begin
-        //     $readmemh(ram_file, ram_data);
-        //     $display("DRAM: Loaded data from %s", ram_file);
-        // end
     end
 
     // 写操作 (同步)

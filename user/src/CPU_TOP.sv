@@ -1,5 +1,5 @@
 `include "include/defines.svh"
-
+// `define YOSYS
 module CPU_TOP (
     input  logic        clk,
     input  logic        rst_n,
