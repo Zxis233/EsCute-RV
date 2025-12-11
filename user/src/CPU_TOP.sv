@@ -339,8 +339,8 @@ module CPU_TOP (
         // DRAM数据（同步读）
         // 注意：DRAM的spo输出已经是寄存器输出，但我们不在PR_MEM_WB中再次寄存
         // 而是在WB级直接使用DRAM_output_data以避免额外的一个周期延迟
-        .dram_data_mem_i  (DRAM_output_data),
-        .dram_data_wb_o   (DRAM_data_WB),
+        // .dram_data_mem_i  (DRAM_output_data),
+        // .dram_data_wb_o   (DRAM_data_WB),
         // 写回数据来源选择信号
         .wd_sel_mem_i     (wd_sel_MEM),
         .wd_sel_wb_o      (wd_sel_WB)
