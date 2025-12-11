@@ -5,7 +5,6 @@ user/backup/
 user/data/
 .vscode/settings.json
 user/tools/__pycache__
-user/src/IROM.sv
 test.json
 *.dot
 *.svg

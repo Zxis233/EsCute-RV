@@ -86,20 +86,6 @@ module PR_ID_EX (
         end
     end
 
-    // verilog_format: off
-    // always_ff @(posedge clk or negedge rst_n) begin
-    //     if (!rst_n)             rD1_o <= 32'b0;
-    //     else if (fwd_rD1e_ID)   rD1_o <= fwd_rD1_ID;
-    //     else                    rD1_o <= rD1_i;
-    // end
-
-    // always_ff @(posedge clk or negedge rst_n) begin
-    //     if (!rst_n)             rD2_o <= 32'b0;
-    //     else if (fwd_rD2e_ID)   rD2_o <= fwd_rD2_ID;
-    //     else                    rD2_o <= rD2_i;
-    // end
-    // verilog_format: on
-
     // 分支跳转相关
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin

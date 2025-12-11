@@ -16,10 +16,7 @@ module PR_MEM_WB (
     output logic [ 4:0] wr_wb_o,
     // 写回数据
     input  logic [31:0] wd_mem_i,
-    output logic [31:0] wd_wb_o,
-    // 同步读DRAM时的额外数据
-    input logic [31:0] dram_data_mem_i,
-    output logic [31:0] dram_data_wb_o
+    output logic [31:0] wd_wb_o
 );
 
     always_ff @(posedge clk or negedge rst_n) begin

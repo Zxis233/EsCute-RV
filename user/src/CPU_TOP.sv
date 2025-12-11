@@ -47,6 +47,11 @@ module CPU_TOP (
 
     logic flush_IF_ID, flush_ID_EX;
     logic keep_PC, stall_IF_ID;
+    logic        fwd_rD1e_ID;
+    logic        fwd_rD2e_ID;
+    logic test_stall,test_stall_1clk,test_stall_2clk;
+
+    assign test_stall = fwd_rD1e_ID || fwd_rD2e_ID;
 // ================= 各级之间的信号 ===================
     // verilog_format:on
 
@@ -62,6 +67,7 @@ module CPU_TOP (
         .clk          (clk),
         .rst_n        (rst_n),
         .keep_pc      (keep_PC),
+        // .keep_pc      (test_stall || keep_PC),
         .branch_op    (take_branch_NextPC),
         .branch_target(branch_target_NextPC),
         .pc_if        (pc_IF),
@@ -72,12 +78,14 @@ module CPU_TOP (
 
     assign valid_IF = (pc_IF >= 0);  // 复位时指令无效
 
+
     PR_IF_ID u_PR_IF_ID (
         .clk             (clk),
         .rst_n           (rst_n),
         // 流水线控制信号
         .flush           (flush_IF_ID),
         .stall           (stall_IF_ID),
+        // .stall           (test_stall),
         // IF级输入
         .pc_if_i         (pc_IF),
         .pc4_if_i        (pc4_IF),
@@ -148,8 +156,7 @@ module CPU_TOP (
     // ================= ID/EX 流水线寄存器 ===================
 
     // 前递信号与数据
-    logic        fwd_rD1e_ID;
-    logic        fwd_rD2e_ID;
+
     logic [31:0] fwd_rD1_ID;
     logic [31:0] fwd_rD2_ID;
 
@@ -158,6 +165,7 @@ module CPU_TOP (
         .rst_n               (rst_n),
         // 流水线控制信号
         .flush               (flush_ID_EX),
+        // .flush               (test_stall),
         // ID级输入
         .pc_id_i             (pc_ID),
         .pc4_id_i            (pc4_ID),
@@ -216,6 +224,8 @@ module CPU_TOP (
         // 前递相关
         .fwd_rD1e_ID         (fwd_rD1e_ID),
         .fwd_rD2e_ID         (fwd_rD2e_ID),
+        // .fwd_rD1e_ID         (1'b0),
+        // .fwd_rD2e_ID         (1'b0),
         .fwd_rD1_ID          (fwd_rD1_ID),
         .fwd_rD2_ID          (fwd_rD2_ID)
     );
@@ -314,23 +324,23 @@ module CPU_TOP (
     // ================= MEM/WB 流水线寄存器 ===================
 
     PR_MEM_WB u_PR_MEM_WB (
-        .clk              (clk),
-        .rst_n            (rst_n),
+        .clk        (clk),
+        .rst_n      (rst_n),
         // MEM级输入
-        .pc_mem_i         (pc_MEM),
+        .pc_mem_i   (pc_MEM),
         // MEM级输出 给WB级输入
         .pc_wb_o          (pc_WB),
         .instr_valid_mem_i(valid_MEM),
         .instr_valid_wb_o (valid_WB),
         // 寄存器堆写使能
-        .rf_we_mem_i      (rf_we_MEM),
-        .rf_we_wb_o       (rf_we_WB),
+        .rf_we_mem_i(rf_we_MEM),
+        .rf_we_wb_o (rf_we_WB),
         // 写回寄存器地址
-        .wr_mem_i         (wR_MEM),
-        .wr_wb_o          (wR_WB),
+        .wr_mem_i   (wR_MEM),
+        .wr_wb_o    (wR_WB),
         // 写回数据
-        .wd_mem_i         (rf_wd_MEM),
-        .wd_wb_o          (rf_wd_WB)
+        .wd_mem_i   (rf_wd_MEM),
+        .wd_wb_o    (rf_wd_WB)
     );
 
     // 冒险控制单元
@@ -352,8 +362,8 @@ module CPU_TOP (
         .rf_wd_EX          (rf_wd_EX),
         .rf_wd_MEM         (rf_wd_MEM),
         .rf_wd_WB          (rf_wd_WB),
-        .take_branch_NextPC(take_branch_NextPC),
-        .branch_predicted_i(),
+        // .take_branch_NextPC(take_branch_NextPC),
+        .branch_predicted_i(take_branch_NextPC),
         .keep_pc           (keep_PC),
         .stall_IF_ID       (stall_IF_ID),
         .flush_IF_ID       (flush_IF_ID),

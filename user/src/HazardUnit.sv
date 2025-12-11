@@ -25,8 +25,6 @@ module HazardUnit (
     input  logic [31:0] rf_wd_EX,
     input  logic [31:0] rf_wd_MEM,
     input  logic [31:0] rf_wd_WB,
-    // 分支跳转信号
-    input  logic        take_branch_NextPC,
     // 预留的分支预测结果
     input  logic        branch_predicted_i,
     // PC保持信号
@@ -72,43 +70,40 @@ module HazardUnit (
     // 前递数据选择
     // 优先级：EX > MEM > WB
     always_comb begin
+        // case-true 语句
         // 源操作数1前递数据选择
-        if (RAW_1_rD1)      fwd_rD1_ID = rf_wd_EX;  // 来自EX级
-        else if (RAW_2_rD1) fwd_rD1_ID = rf_wd_MEM; // 来自MEM级
-        else if (RAW_3_rD1) fwd_rD1_ID = rf_wd_WB;  // 来自WB级
-        else                fwd_rD1_ID = 32'b0;
-
+        case (1'b1)
+            RAW_1_rD1: fwd_rD1_ID = rf_wd_EX;  // 来自EX级
+            RAW_2_rD1: fwd_rD1_ID = rf_wd_MEM; // 来自MEM级
+            RAW_3_rD1: fwd_rD1_ID = rf_wd_WB;
+            default:   fwd_rD1_ID = 32'b0;
+        endcase
         // 源操作数2前递数据选择
-        if (RAW_1_rD2)      fwd_rD2_ID = rf_wd_EX;  // 来自EX级
-        else if (RAW_2_rD2) fwd_rD2_ID = rf_wd_MEM; // 来自MEM级
-        else if (RAW_3_rD2) fwd_rD2_ID = rf_wd_WB;  // 来自WB级
-        else                fwd_rD2_ID = 32'b0;
+        case (1'b1)
+            RAW_1_rD2: fwd_rD2_ID = rf_wd_EX;  // 来自EX级
+            RAW_2_rD2: fwd_rD2_ID = rf_wd_MEM; // 来自MEM级
+            RAW_3_rD2: fwd_rD2_ID = rf_wd_WB;
+            default:   fwd_rD2_ID = 32'b0;
+        endcase
     end
     // verilog_format: on
 
     // Load_use 冒险判断
     logic load_use_hazard;
     assign load_use_hazard = (wd_sel_EX == `WD_SEL_FROM_DRAM) && (RAW_1_rD1 || RAW_1_rD2);
+    // assign load_use_hazard = 1'b0;
 
     // [TODO] 静态分支预测
     // [TODO] 动态分支预测
     logic branch_predicted_result;
     // 此处设置为静态不预测 因此获取EX级的跳转结果
-    // assign branch_predicted_result = branch_predicted_i;
-    assign branch_predicted_result = take_branch_NextPC;
-
-    // // 控制冒险时将IF/ID寄存器打一拍
-    // logic control_hazard_stall;
-    // always_ff @(posedge clk or negedge rst_n) begin
-    //     if (!rst_n) control_hazard_stall <= 1'b0;
-    //     else control_hazard_stall <= branch_predicted_result;
-    // end
+    assign branch_predicted_result = branch_predicted_i;
 
     // 流水线冲刷与停顿
     always_comb begin
-        keep_pc     = load_use_hazard ? 1'b1 : 1'b0;
-        stall_IF_ID = load_use_hazard ? 1'b1 : 1'b0;
-        flush_IF_ID = branch_predicted_result ? 1'b1 : 1'b0;
+        keep_pc     = load_use_hazard                              ? 1'b1 : 1'b0;
+        stall_IF_ID = load_use_hazard                              ? 1'b1 : 1'b0;
+        flush_IF_ID = branch_predicted_result                      ? 1'b1 : 1'b0;
         flush_ID_EX = (branch_predicted_result || load_use_hazard) ? 1'b1 : 1'b0;
     end
 
