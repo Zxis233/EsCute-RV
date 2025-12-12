@@ -168,16 +168,21 @@ regress_run:
 
 regress_collect:
 	@echo ""
-	@echo "========================================"
-	@echo "回归测试汇总"
-	@echo "========================================"
+	@echo "==========================================="
+	@echo "               回归测试汇总"
+	@echo "==========================================="
+	@echo "     Time | STATUS |  CASE NUM  | PATH"
 	@if [ -f ${RUN_DIR}/regress_summary.txt ]; then \
 		cat ${RUN_DIR}/regress_summary.txt; \
-		echo "========================================"; \
+		echo "==========================================="; \
 		echo "总计: $(words $(ALL_TESTS)) 个测试"; \
-		echo "通过: $$(grep -c PASS ${RUN_DIR}/regress_summary.txt)"; \
-		echo "失败: $$(grep -c FAIL ${RUN_DIR}/regress_summary.txt)"; \
-		echo "========================================"; \
+		PASS_COUNT=$$(grep -c "\[PASS\]" ${RUN_DIR}/regress_summary.txt || true); \
+		FAIL_COUNT=$$(grep -c "\[FAIL\]" ${RUN_DIR}/regress_summary.txt || true); \
+		EROR_COUNT=$$(grep -c "EROR" ${RUN_DIR}/regress_summary.txt || true); \
+		echo "通过: $$PASS_COUNT"; \
+		echo "失败: $$FAIL_COUNT"; \
+		echo "错误: $$EROR_COUNT"; \
+		echo "==========================================="; \
 	else \
 		echo "没有找到测试结果"; \
 	fi

@@ -1,5 +1,5 @@
-// [HACK] LoadStoreUnit模块横跨MEM和WB级
-// 可实例化两个LoadStoreUnit模块 分别处理
+// LoadStoreUnit模块横跨MEM和WB级
+// [HACK] 拆分为两部分以简化综合后设计
 module LoadStoreUnit (
     input  logic [ 3:0] sl_type,
     input  logic [31:0] addr,

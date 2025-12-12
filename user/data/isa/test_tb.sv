@@ -118,11 +118,11 @@ module test_tb;
         if (test_count == 3) begin
             case (x17)
                 32'h0d000721: begin
-                    $display("%10t| [PASS] |\t\t%20s", $time, testcase);
+                    $display("%10t| [PASS] |\t\t| %20s", $time, testcase);
                     $finish;
                 end
                 32'h1919810: begin
-                    $display("%10t| [FAIL] | No.%2d\t%20s", $time, x10, testcase);
+                    $display("%10t| [FAIL] | No.%2d\t| %20s", $time, x10, testcase);
                     $finish;
                 end
                 default: begin
@@ -134,7 +134,7 @@ module test_tb;
     // 超时保护
     initial begin
         #100000;  // 50us 超时
-        $display("%10t| [EROR] |TimeOut\t%20s", $time, testcase);
+        $display("%10t| [EROR] |TimeOut!| %20s", $time, testcase);
         $finish;
     end
 
