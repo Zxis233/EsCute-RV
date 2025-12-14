@@ -3,10 +3,15 @@
 `define CPU_TOP_SV_INCLUDED 
 
 
-module CPU_TOP (
+module CPU_TOP #(
+    // 指令流加密参数
+    parameter bit ENABLE_INSTR_ENCRYPT = 1'b1,  // 是否启用指令流加密
+    parameter logic [127:0] ASCON_KEY = 128'h0123456789ABCDEF0123456789ABCDEF,  // 128位密钥
+    parameter logic [127:0] ASCON_NONCE = 128'hFEDCBA9876543210FEDCBA9876543210  // 128位随机数
+) (
     input  logic        clk,
     input  logic        rst_n,
-    // 来自指令存储器IROM的指令
+    // 来自指令存储器IROM的指令 (可能是加密的)
     input  logic [31:0] instr,
     // 输出给指令存储器IROM的地址
     // 这里实际上是PC的高14位
@@ -20,6 +25,10 @@ module CPU_TOP (
     logic [31:0]     pc_IF,     pc_ID,     pc_EX,     pc_MEM,     pc_WB;
     logic [31:0]    pc4_IF,    pc4_ID,    pc4_EX,    pc4_MEM,    pc4_WB;
     logic [31:0]  instr_IF,  instr_ID,  instr_EX,  instr_MEM,  instr_WB;
+
+    // 加密相关信号
+    logic [31:0] encrypted_instr;  // 从IROM读取的加密指令
+    logic [31:0] decrypted_instr;  // 解密后的指令
 
     logic [4:0]             alu_op_ID, alu_op_EX;
 
@@ -55,8 +64,33 @@ module CPU_TOP (
 
 // IF级
 
+    // 指令解密模块
+    // 当启用加密时，从IROM读取的指令需要先解密
+    assign encrypted_instr = instr;
+
+    generate
+        if (ENABLE_INSTR_ENCRYPT) begin : gen_decrypt
+            // 实例化Ascon流解密模块
+            ascon_decrypt #(
+                .KEY  (ASCON_KEY),
+                .NONCE(ASCON_NONCE)
+            ) u_ascon_decrypt (
+                .clk            (clk),
+                .rst_n          (rst_n),
+                .decrypt_enable (1'b1),             // 始终启用解密
+                .pc             (pc_IF),            // 当前PC值
+                .encrypted_instr(encrypted_instr),  // 加密的指令
+                .decrypted_instr(decrypted_instr)   // 解密后的指令
+            );
+        end else begin : gen_no_decrypt
+            // 不启用加密时直接使用原始指令
+            assign decrypted_instr = encrypted_instr;
+        end
+    endgenerate
+
     // 指令输入与PC输出
-    assign instr_IF = instr;
+    // 使用解密后的指令（如果启用加密）或原始指令
+    assign instr_IF = decrypted_instr;
     // 这里取PC的高14位作为IROM地址 这样输出的地址就是字地址
     assign pc       = pc_IF[15:2];
 
