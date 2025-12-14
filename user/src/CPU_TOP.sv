@@ -6,7 +6,7 @@
 module CPU_TOP (
     input  logic        clk,
     input  logic        rst_n,
-    // 来自指令存储器IROM的指令
+    // 来自指令存储器IROM的指令 (可能是加密的)
     input  logic [31:0] instr,
     // 输出给指令存储器IROM的地址
     // 这里实际上是PC的高14位
@@ -25,7 +25,7 @@ module CPU_TOP (
 
     logic                  dram_we_ID,dram_we_EX,dram_we_MEM;
     logic                    rf_we_ID,  rf_we_EX,  rf_we_MEM,  rf_we_WB;
-    logic [1:0]             wd_sel_ID, wd_sel_EX, wd_sel_MEM, wd_sel_WB;
+    logic [2:0]             wd_sel_ID, wd_sel_EX, wd_sel_MEM, wd_sel_WB;
 
     logic [4:0]                 wR_ID,     wR_EX,     wR_MEM,     wR_WB;
     logic [31:0]                        rf_wd_EX,  rf_wd_MEM,  rf_wd_WB;
@@ -49,13 +49,27 @@ module CPU_TOP (
     // ALU结果
     logic [31:0]                            alu_result_EX,      alu_result_MEM,      alu_result_WB;
 
+    // 乘法器相关信号
+    logic                   is_mul_instr_ID, is_mul_instr_EX;
+    logic [1:0]                   mul_op_ID,       mul_op_EX;
+    logic                   mul_valid_i;
+    logic                   mul_valid_o;
+    logic [31:0]            mul_result;
+    logic [4:0]             mul_rd_o;
+    logic                   mul_rf_we_o;
+    logic                   mul_busy;
+    logic                   mul_stage1_busy;
+    logic                   mul_stage2_busy;
+    logic                   mul_stage3_busy;
+    logic                   mul_stage4_busy;
+    logic [4:0]             mul_rd_s1, mul_rd_s2, mul_rd_s3, mul_rd_s4;
+
     logic flush_IF_ID, flush_ID_EX;
     logic keep_PC, stall_IF_ID;
 // ================= 各级之间的信号 ===================
 
 // IF级
 
-    // 指令输入与PC输出
     assign instr_IF = instr;
     // 这里取PC的高14位作为IROM地址 这样输出的地址就是字地址
     assign pc       = pc_IF[15:2];
@@ -112,17 +126,21 @@ module CPU_TOP (
     logic [4:0] rR1, rR2;
     assign rR1 = instr_ID[19:15], rR2 = instr_ID[24:20];
 
+    logic [31:0] rf_wd_WB_from_ALU_or_DRAM;
     RegisterF u_registerf (
         .clk  (clk),
         // .rst_n(rst_n),
+        // 主流水线写端口
         .rf_we(rf_we_WB),
+        .wR   (wR_WB),
+        .wD   (rf_wd_WB_from_ALU_or_DRAM),
+        // 乘法器写端口
+        .rf_we2(mul_rf_we_o),
+        .wR2   (mul_rd_o),
+        .wD2   (mul_result),
         // 读地址端口
         .rR1  (rR1),
         .rR2  (rR2),
-        // 写地址端口
-        .wR   (wR_WB),
-        // 写数据端口
-        .wD   (rf_wd_WB),
         // 读数据端口
         .rD1  (rf_rd1_ID),
         .rD2  (rf_rd2_ID)
@@ -147,7 +165,9 @@ module CPU_TOP (
         .jump_type      (jump_type_ID),
         .sl_type        (sl_type_ID),
         .rs1_used       (rs1_used_ID),
-        .rs2_used       (rs2_used_ID)
+        .rs2_used       (rs2_used_ID),
+        .is_mul_instr   (is_mul_instr_ID),
+        .mul_op         (mul_op_ID)
     );
 
 // ================= ID/EX 流水线寄存器 ===================
@@ -222,7 +242,12 @@ module CPU_TOP (
         .fwd_rD1e_EX         (fwd_rD1e_EX),
         .fwd_rD2e_EX         (fwd_rD2e_EX),
         .fwd_rD1_EX          (fwd_rD1_EX),
-        .fwd_rD2_EX          (fwd_rD2_EX)
+        .fwd_rD2_EX          (fwd_rD2_EX),
+        // 乘法相关
+        .is_mul_instr_id_i   (is_mul_instr_ID),
+        .is_mul_instr_ex_o   (is_mul_instr_EX),
+        .mul_op_id_i         (mul_op_ID),
+        .mul_op_ex_o         (mul_op_EX)
     );
 
 // EX 级
@@ -241,6 +266,35 @@ module CPU_TOP (
         .zero        (alu_zero),
         .sign        (alu_sign),
         .alu_unsigned(alu_unsigned)
+    );
+
+    // 乘法器 - 四级流水线，与EX级并行
+    // 乘法指令在EX级启动，结果在4个周期后可用
+    // 只有分支跳转会阻止乘法器启动，数据冒险不会
+    assign mul_valid_i = is_mul_instr_EX && valid_EX && !take_branch_NextPC;
+
+    MUL u_MUL (
+        .clk             (clk),
+        .rst_n           (rst_n),
+        .mul_valid_i     (mul_valid_i),
+        .mul_op_i        (mul_op_EX),
+        .mul_src1_i      (rf_rd1_EX),
+        .mul_src2_i      (rf_rd2_EX),
+        .mul_rd_i        (wR_EX),
+        .flush_i         (take_branch_NextPC),  // 分支跳转时冲刷乘法器
+        .mul_valid_o     (mul_valid_o),
+        .mul_result_o    (mul_result),
+        .mul_rd_o        (mul_rd_o),
+        .mul_rf_we_o     (mul_rf_we_o),
+        .mul_busy_o      (mul_busy),
+        .mul_stage1_busy_o(mul_stage1_busy),
+        .mul_stage2_busy_o(mul_stage2_busy),
+        .mul_stage3_busy_o(mul_stage3_busy),
+        .mul_stage4_busy_o(mul_stage4_busy),
+        .mul_rd_s1_o     (mul_rd_s1),
+        .mul_rd_s2_o     (mul_rd_s2),
+        .mul_rd_s3_o     (mul_rd_s3),
+        .mul_rd_s4_o     (mul_rd_s4)
     );
 
     // NextPC 计算
@@ -384,8 +438,30 @@ module CPU_TOP (
     // 回写数据来源选择MUX
     // 对于同步DRAM，DRAM的spo已经是寄存器输出，在WB级直接使用以避免多余延迟
     // DRAM_output_data在整个WB周期内保持稳定，可以安全地被寄存器堆采样
-    // 现在使用WB级的LoadStoreUnit输出，确保sl_type与DRAM数据对应
-    assign rf_wd_WB = (wd_sel_WB == `WD_SEL_FROM_DRAM) ? load_data_WB : rf_wd_WB_from_ALU;
+    // 现在使用双写端口寄存器堆，主流水线和乘法器可以同时写回
+
+    always_comb begin
+        if (wd_sel_WB == `WD_SEL_FROM_DRAM) begin
+            rf_wd_WB_from_ALU_or_DRAM = load_data_WB;
+        end else begin
+            rf_wd_WB_from_ALU_or_DRAM = rf_wd_WB_from_ALU;
+        end
+    end
+
+    // rf_wd_WB保留用于前递（需要考虑乘法结果）
+    logic [31:0] rf_wd_WB_final;
+    always_comb begin
+        if (mul_valid_o && mul_rf_we_o) begin
+            // 乘法结果用于前递
+            rf_wd_WB_final = mul_result;
+        end else if (wd_sel_WB == `WD_SEL_FROM_DRAM) begin
+            rf_wd_WB_final = load_data_WB;
+        end else begin
+            rf_wd_WB_final = rf_wd_WB_from_ALU;
+        end
+    end
+
+    assign rf_wd_WB = rf_wd_WB_final;
 
     // 冒险控制单元
 
@@ -409,6 +485,18 @@ module CPU_TOP (
         .rf_wd_WB          (rf_wd_WB),
         .take_branch_NextPC(take_branch_NextPC),
         .branch_predicted_i(),
+        // 乘法器状态信号 (4级流水线)
+        .mul_stage1_busy   (mul_stage1_busy),
+        .mul_stage2_busy   (mul_stage2_busy),
+        .mul_stage3_busy   (mul_stage3_busy),
+        .mul_stage4_busy   (mul_stage4_busy),
+        .mul_rd_s1         (mul_rd_s1),
+        .mul_rd_s2         (mul_rd_s2),
+        .mul_rd_s3         (mul_rd_s3),
+        .mul_rd_s4         (mul_rd_s4),
+        .is_mul_instr_ID   (is_mul_instr_ID),
+        .is_mul_instr_EX   (is_mul_instr_EX),
+        // 输出
         .keep_pc           (keep_PC),
         .stall_IF_ID       (stall_IF_ID),
         .flush_IF_ID       (flush_IF_ID),

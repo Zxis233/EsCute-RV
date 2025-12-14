@@ -11,7 +11,7 @@ module Decoder (
     output logic        dram_we,          // 高电平为写使能 低电平为读
     output logic        rf_we,
     // 写回数据来源
-    output logic [ 1:0] wd_sel,
+    output logic [ 2:0] wd_sel,
     // 分支相关
     output logic        is_branch_instr,
     output logic [ 2:0] branch_type,
@@ -21,7 +21,10 @@ module Decoder (
     output logic [ 3:0] sl_type,
     // 源寄存器是否在使用
     output logic        rs1_used,
-    output logic        rs2_used
+    output logic        rs2_used,
+    // 乘法指令标识
+    output logic        is_mul_instr,
+    output logic [ 1:0] mul_op
 );
 
     // 提取指令字段
@@ -96,40 +99,55 @@ module Decoder (
     // 回写数据来源选择
     // verilog_format:off
     always_comb begin : wb_source_selection
-        unique case (opcode)
-            `OPCODE_RTYPE,
-            `OPCODE_ITYPE:  wd_sel = `WD_SEL_FROM_ALU;
+        // 首先检测是否为乘法指令
+        if (opcode == `OPCODE_RTYPE && funct7 == `FUNCT7_MUL && 
+            (funct3 == `FUNCT3_ADD_SUB_MUL || funct3 == `FUNCT3_SLL_MULH || 
+             funct3 == `FUNCT3_SLT_MULHSU || funct3 == `FUNCT3_SLTU_MULHU)) begin
+            wd_sel = `WD_SEL_FROM_MUL;
+        end else begin
+            unique case (opcode)
+                `OPCODE_RTYPE,
+                `OPCODE_ITYPE:  wd_sel = `WD_SEL_FROM_ALU;
 
-            `OPCODE_LTYPE:  wd_sel = `WD_SEL_FROM_DRAM;
+                `OPCODE_LTYPE:  wd_sel = `WD_SEL_FROM_DRAM;
 
-            `OPCODE_JAL,
-            `OPCODE_JALR:   wd_sel = `WD_SEL_FROM_PC4;
+                `OPCODE_JAL,
+                `OPCODE_JALR:   wd_sel = `WD_SEL_FROM_PC4;
 
-            `OPCODE_LUI,
-            `OPCODE_AUIPC:  wd_sel = `WD_SEL_FROM_IEXT;
+                `OPCODE_LUI,
+                `OPCODE_AUIPC:  wd_sel = `WD_SEL_FROM_IEXT;
 
-            default:        wd_sel = 2'b0;
-        endcase
+                default:        wd_sel = 3'b0;
+            endcase
+        end
     end
     // verilog_format:on
 
     // 寄存器堆写使能
+    // 乘法指令通过乘法器写回，不在此处设置rf_we
     // verilog_format:off
     always_comb begin : rf_write_enable
-        unique case (opcode)
-            `OPCODE_RTYPE,
-            `OPCODE_ITYPE,
-            `OPCODE_LTYPE,
-            `OPCODE_LUI,
-            `OPCODE_AUIPC,
-            `OPCODE_JAL,
-            `OPCODE_JALR:   rf_we = 1'b1;
+        // 首先检测是否为乘法指令
+        if (opcode == `OPCODE_RTYPE && funct7 == `FUNCT7_MUL && 
+            (funct3 == `FUNCT3_ADD_SUB_MUL || funct3 == `FUNCT3_SLL_MULH || 
+             funct3 == `FUNCT3_SLT_MULHSU || funct3 == `FUNCT3_SLTU_MULHU)) begin
+            rf_we = 1'b0;  // 乘法指令的写回由乘法器处理
+        end else begin
+            unique case (opcode)
+                `OPCODE_RTYPE,
+                `OPCODE_ITYPE,
+                `OPCODE_LTYPE,
+                `OPCODE_LUI,
+                `OPCODE_AUIPC,
+                `OPCODE_JAL,
+                `OPCODE_JALR:   rf_we = 1'b1;
 
-            `OPCODE_BTYPE,
-            `OPCODE_STYPE:  rf_we = 1'b0;
+                `OPCODE_BTYPE,
+                `OPCODE_STYPE:  rf_we = 1'b0;
 
-            default:        rf_we = 1'b0;  // 考虑异常情况 默认不写
-        endcase
+                default:        rf_we = 1'b0;  // 考虑异常情况 默认不写
+            endcase
+        end
     end
     // verilog_format:on
 
@@ -249,6 +267,41 @@ module Decoder (
             default:                sl_type = `MEM_NOP;
         endcase
     end
+
+    // 乘法指令检测
+    // verilog_format:off
+    always_comb begin : mul_detection
+        // 默认值
+        is_mul_instr = 1'b0;
+        mul_op       = 2'b00;
+        
+        // 乘法指令: opcode = 0110011 (R-type), funct7 = 0000001
+        if (opcode == `OPCODE_RTYPE && funct7 == `FUNCT7_MUL) begin
+            case (funct3)
+                `FUNCT3_ADD_SUB_MUL: begin   // MUL
+                    is_mul_instr = 1'b1;
+                    mul_op       = 2'b00;
+                end
+                `FUNCT3_SLL_MULH: begin      // MULH
+                    is_mul_instr = 1'b1;
+                    mul_op       = 2'b01;
+                end
+                `FUNCT3_SLT_MULHSU: begin    // MULHSU
+                    is_mul_instr = 1'b1;
+                    mul_op       = 2'b10;
+                end
+                `FUNCT3_SLTU_MULHU: begin    // MULHU
+                    is_mul_instr = 1'b1;
+                    mul_op       = 2'b11;
+                end
+                default: begin
+                    is_mul_instr = 1'b0;
+                    mul_op       = 2'b00;
+                end
+            endcase
+        end
+    end
+    // verilog_format:on
 
     // 可视化输出判断
     //verilog_format:off

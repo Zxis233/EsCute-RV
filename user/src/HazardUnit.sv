@@ -3,9 +3,9 @@
 module HazardUnit (
     input  logic        clk,
     input  logic        rst_n,
-    // LOAD指令判断
-    input  logic [ 1:0] wd_sel_EX,
-    input  logic [ 1:0] wd_sel_MEM,
+    // LOAD/MUL指令判断 (扩展到3位以支持WD_SEL_FROM_MUL)
+    input  logic [ 2:0] wd_sel_EX,
+    input  logic [ 2:0] wd_sel_MEM,
     // 寄存器使用信号
     input  logic        rs1_used_ID,
     input  logic        rs2_used_ID,
@@ -30,6 +30,17 @@ module HazardUnit (
     input  logic        take_branch_NextPC,
     // 预留的分支预测结果
     input  logic        branch_predicted_i,
+    // 乘法器状态信号 (4级流水线)
+    input  logic        mul_stage1_busy,     // 乘法器第一级忙
+    input  logic        mul_stage2_busy,     // 乘法器第二级忙
+    input  logic        mul_stage3_busy,     // 乘法器第三级忙
+    input  logic        mul_stage4_busy,     // 乘法器第四级忙
+    input  logic [ 4:0] mul_rd_s1,           // 乘法器第一级目标寄存器
+    input  logic [ 4:0] mul_rd_s2,           // 乘法器第二级目标寄存器
+    input  logic [ 4:0] mul_rd_s3,           // 乘法器第三级目标寄存器
+    input  logic [ 4:0] mul_rd_s4,           // 乘法器第四级目标寄存器
+    input  logic        is_mul_instr_ID,     // ID级是否为乘法指令
+    input  logic        is_mul_instr_EX,     // EX级是否为乘法指令
     // PC保持信号
     output logic        keep_pc,
     // IF/ID停顿信号
@@ -107,6 +118,61 @@ module HazardUnit (
 
     assign load_use_hazard     = load_use_hazard_ex || load_use_hazard_mem;
 
+    // 乘法指令冒险判断
+    // 乘法器是四级流水线，结果在第四级末尾才可用
+    // 如果ID级的指令依赖于乘法器中正在计算的结果，需要停顿
+    logic mul_use_hazard;
+    logic mul_ex_hazard_rD1, mul_ex_hazard_rD2;  // EX级的乘法指令导致的冒险
+    logic mul_s1_hazard_rD1, mul_s1_hazard_rD2;
+    logic mul_s2_hazard_rD1, mul_s2_hazard_rD2;
+    logic mul_s3_hazard_rD1, mul_s3_hazard_rD2;
+    logic mul_s4_hazard_rD1, mul_s4_hazard_rD2;
+
+    always_comb begin
+        // EX级的乘法指令导致的冒险
+        // 当MUL在EX级时，如果ID级的指令需要MUL的结果，必须停顿
+        // 流水线流程：EX -> MUL_S1 -> MUL_S2 -> MUL_S3 -> MUL_S4(结果可用)，需停顿3个周期
+        mul_ex_hazard_rD1 = is_mul_instr_EX && (wR_EX == rR1_ID) && rs1_used_ID && (wR_EX != 5'b0);
+        mul_ex_hazard_rD2 = is_mul_instr_EX && (wR_EX == rR2_ID) && rs2_used_ID && (wR_EX != 5'b0);
+
+        // 乘法器第一级的数据冒险
+        // 流水线流程：MUL_S1 -> MUL_S2 -> MUL_S3 -> MUL_S4(结果可用)，需停顿2个周期
+        mul_s1_hazard_rD1 = mul_stage1_busy && (mul_rd_s1 == rR1_ID) && rs1_used_ID &&
+            (mul_rd_s1 != 5'b0);
+        mul_s1_hazard_rD2 = mul_stage1_busy && (mul_rd_s1 == rR2_ID) && rs2_used_ID &&
+            (mul_rd_s1 != 5'b0);
+
+        // 乘法器第二级的数据冒险
+        // 流水线流程：MUL_S2 -> MUL_S3 -> MUL_S4(结果可用)，需停顿1个周期
+        mul_s2_hazard_rD1 = mul_stage2_busy && (mul_rd_s2 == rR1_ID) && rs1_used_ID &&
+            (mul_rd_s2 != 5'b0);
+        mul_s2_hazard_rD2 = mul_stage2_busy && (mul_rd_s2 == rR2_ID) && rs2_used_ID &&
+            (mul_rd_s2 != 5'b0);
+
+        // 乘法器第三级的数据冒险
+        // 流水线流程：MUL_S3 -> MUL_S4(结果可用)，结果将在下个周期可用
+        mul_s3_hazard_rD1 = mul_stage3_busy && (mul_rd_s3 == rR1_ID) && rs1_used_ID &&
+            (mul_rd_s3 != 5'b0);
+        mul_s3_hazard_rD2 = mul_stage3_busy && (mul_rd_s3 == rR2_ID) && rs2_used_ID &&
+            (mul_rd_s3 != 5'b0);
+
+        // 乘法器第四级的数据冒险
+        // 结果在当前周期末可用，但WB尚未完成，仍需停顿等待写回
+        mul_s4_hazard_rD1 = mul_stage4_busy && (mul_rd_s4 == rR1_ID) && rs1_used_ID &&
+            (mul_rd_s4 != 5'b0);
+        mul_s4_hazard_rD2 = mul_stage4_busy && (mul_rd_s4 == rR2_ID) && rs2_used_ID &&
+            (mul_rd_s4 != 5'b0);
+
+        mul_use_hazard = mul_ex_hazard_rD1 || mul_ex_hazard_rD2 || mul_s1_hazard_rD1 ||
+            mul_s1_hazard_rD2 || mul_s2_hazard_rD1 || mul_s2_hazard_rD2 || mul_s3_hazard_rD1 ||
+            mul_s3_hazard_rD2 || mul_s4_hazard_rD1 || mul_s4_hazard_rD2;
+    end
+
+    // 乘法指令结构冒险判断
+    // 如果乘法器第一级正在使用，新的乘法指令需要等待
+    logic mul_struct_hazard;
+    assign mul_struct_hazard = is_mul_instr_ID && mul_stage1_busy;
+
     // [TODO] 静态分支预测
     // [TODO] 动态分支预测
     logic branch_predicted_result;
@@ -115,11 +181,14 @@ module HazardUnit (
     assign branch_predicted_result = take_branch_NextPC;
 
     // 流水线冲刷与停顿
+    logic any_hazard;
+    assign any_hazard = load_use_hazard || mul_use_hazard || mul_struct_hazard;
+
     always_comb begin
-        keep_pc     = load_use_hazard                              ? 1'b1 : 1'b0;
-        stall_IF_ID = load_use_hazard                              ? 1'b1 : 1'b0;
-        flush_IF_ID = branch_predicted_result                      ? 1'b1 : 1'b0;
-        flush_ID_EX = (branch_predicted_result || load_use_hazard) ? 1'b1 : 1'b0;
+        keep_pc     = any_hazard ? 1'b1 : 1'b0;
+        stall_IF_ID = any_hazard ? 1'b1 : 1'b0;
+        flush_IF_ID = branch_predicted_result ? 1'b1 : 1'b0;
+        flush_ID_EX = (branch_predicted_result || any_hazard) ? 1'b1 : 1'b0;
     end
 
 endmodule

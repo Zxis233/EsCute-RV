@@ -19,6 +19,7 @@ rv32ui_sc_tests = \
 	xor xori \
 	sb sh sw st_ld \
 	lb lbu lh lhu lw ld_st \
+	mul mulh mulhsu mulhu 
 	# ma_data \
 	# fence_i \
 

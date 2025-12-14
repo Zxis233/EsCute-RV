@@ -1,11 +1,12 @@
 # EsCute 极简五级流水线RV32I实现
 
 
-本分支在SDRAM的基础上，添加了[LoadStoreUnit.sv](user/src/LoadStoreUnit.sv)模块，用于处理字节和半字的访存操作。
+本分支在LSU的基础上，添加了[MUL.sv](user/src/LoadStoreUnit.sv)模块，用于多周期处理乘法。
 
 - [x] 实现RV32I指令集的五级流水线CPU  
 - [x] 支持流水线停顿与数据前推  
-- [x] 通过官方[riscv-tests](https://github.com/riscv-software-src/riscv-tests) RV32I验证（不含`ECALL`与`EBRAK`指令）
+- [x] 支持 Zmmul 扩展  
+- [x] 通过官方[riscv-tests](https://github.com/riscv-software-src/riscv-tests) RV32I_Zmmul验证（不含`ECALL`与`EBRAK`指令）
 
 
 ## 部署方法
@@ -71,7 +72,7 @@ EsCute-RV
    │  ├── imm_extender.sv       # 立即数扩展模块
    │  ├── IROM.sv               # 指令存储器模块
    │  ├── LoadStoreUnit.sv      # 访存单元模块
-   │  ├── MUL.sv                # 乘法运算模块          [FIXME] 未完成
+   │  ├── MUL.sv                # 乘法运算模块
    │  ├── NextPC_Generator.sv   # 下一条指令地址生成模块
    │  ├── PC.sv                 # 程序计数器模块
    │  ├── PR_IF_ID.sv           # IF/ID级  流水线寄存器模块
@@ -89,7 +90,7 @@ EsCute-RV
 ## 后续工作
 
 - [ ] 支持 Zicsr 扩展
-- [ ] 支持 M 扩展
+- [ ] ~~支持 M 扩展~~
 - [ ] 支持 Zifenci 扩展
 - [ ] 支持基本中断处理机制  
 - [ ] 支持分支预测与延迟槽  

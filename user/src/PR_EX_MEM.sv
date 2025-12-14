@@ -14,8 +14,8 @@ module PR_EX_MEM (
     input  logic        rf_we_ex_i,
     output logic        rf_we_mem_o,
     // 写回数据来源
-    input  logic [ 1:0] wd_sel_ex_i,
-    output logic [ 1:0] wd_sel_mem_o,
+    input  logic [ 2:0] wd_sel_ex_i,
+    output logic [ 2:0] wd_sel_mem_o,
     // 写回寄存器地址
     input  logic [ 4:0] wr_ex_i,
     output logic [ 4:0] wr_mem_o,
@@ -38,7 +38,7 @@ module PR_EX_MEM (
             instr_valid_mem_o <= 1'b0;
             dram_we_mem_o     <= 1'b0;
             rf_we_mem_o       <= 1'b0;
-            wd_sel_mem_o      <= 2'b0;
+            wd_sel_mem_o      <= 3'b0;
             alu_result_mem_o  <= 32'b0;
             wd_mem_o          <= 32'b0;
             rD2_mem_o         <= 32'b0;

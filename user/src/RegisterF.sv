@@ -7,10 +7,14 @@ module RegisterF (
     // 读地址端口
     input  logic [ 4:0] rR1,
     input  logic [ 4:0] rR2,
-    // 写地址端口
+    // 写地址端口1 (主流水线)
     input  logic [ 4:0] wR,
-    // 写数据端口
+    // 写数据端口1 (主流水线)
     input  logic [31:0] wD,
+    // 写端口2 (乘法器)
+    input  logic        rf_we2,
+    input  logic [ 4:0] wR2,
+    input  logic [31:0] wD2,
     // 读数据端口
     output logic [31:0] rD1,
     output logic [31:0] rD2
@@ -24,9 +28,17 @@ module RegisterF (
         rf_in[0] = '0;  // 初始 x0 = 0
     end
 
-    // 写入使用时序逻辑
+    // 写入使用时序逻辑 - 支持双写端口
+    // 当两个端口同时写入同一寄存器时，乘法器端口优先
     always_ff @(posedge clk) begin
-        if (rf_we && wR != 5'd0) rf_in[wR] <= wD;
+        // 主流水线写端口 (仅当乘法器不写入同一寄存器时才写)
+        if (rf_we && wR != 5'd0 && !(rf_we2 && wR2 == wR)) begin
+            rf_in[wR] <= wD;
+        end
+        // 乘法器写端口 (优先级更高)
+        if (rf_we2 && wR2 != 5'd0) begin
+            rf_in[wR2] <= wD2;
+        end
     end
 
     // 读取使用组合逻辑

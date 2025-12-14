@@ -38,8 +38,8 @@ module PR_ID_EX (
     input  logic        rf_we_id_i,
     output logic        rf_we_ex_o,
     // 写回数据来源
-    input  logic [ 1:0] wd_sel_id_i,
-    output logic [ 1:0] wd_sel_ex_o,
+    input  logic [ 2:0] wd_sel_id_i,
+    output logic [ 2:0] wd_sel_ex_o,
     // 写回寄存器地址
     input  logic [ 4:0] wr_id_i,
     output logic [ 4:0] wr_ex_o,
@@ -64,7 +64,12 @@ module PR_ID_EX (
     input               fwd_rD1e_EX,
     input               fwd_rD2e_EX,
     input  logic [31:0] fwd_rD1_EX,
-    input  logic [31:0] fwd_rD2_EX
+    input  logic [31:0] fwd_rD2_EX,
+    // 乘法相关
+    input  logic        is_mul_instr_id_i,
+    output logic        is_mul_instr_ex_o,
+    input  logic [ 1:0] mul_op_id_i,
+    output logic [ 1:0] mul_op_ex_o
 );
 
     // 前递信号与数据
@@ -168,6 +173,20 @@ module PR_ID_EX (
             wr_ex_o <= 5'b0;
         end else begin
             wr_ex_o <= wr_id_i;
+        end
+    end
+
+    // 乘法相关
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            is_mul_instr_ex_o <= 1'b0;
+            mul_op_ex_o       <= 2'b0;
+        end else if (flush) begin
+            is_mul_instr_ex_o <= 1'b0;
+            mul_op_ex_o       <= 2'b0;
+        end else begin
+            is_mul_instr_ex_o <= is_mul_instr_id_i;
+            mul_op_ex_o       <= mul_op_id_i;
         end
     end
 
