@@ -19,7 +19,7 @@ TB_TOP       := ${SIM_TB_DIR}/test_tb.sv
 TESTCASE     := rv32ui-p-add
 
 # 仿真选项
-DUMPWAVE     := 0
+DUMPWAVE     := 1
 PRINT_INFO   := 0
 
 # 仿真工具配置

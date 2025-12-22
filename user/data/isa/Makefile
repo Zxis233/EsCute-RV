@@ -69,7 +69,7 @@ endif
 
 endef
 
-$(eval $(call compile_template,rv32ui,-march=rv32i_zicsr -mabi=ilp32))
+$(eval $(call compile_template,rv32ui,-march=rv32i_zicsr_zmmul -mabi=ilp32))
 ifeq ($(XLEN),64)
 $(eval $(call compile_template,rv64ui,-march=rv64g -mabi=lp64))
 endif

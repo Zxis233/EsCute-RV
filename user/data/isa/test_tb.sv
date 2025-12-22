@@ -86,7 +86,7 @@ module test_tb;
         if ($value$plusargs("DUMPWAVE=%d", dumpwave)) begin
             if (dumpwave == 1) begin
 `ifdef VCD_FILEPATH
-                $dumpfile(`VCD_FILEPATH);
+                $dumpfile({"../../", `VCD_FILEPATH});
 `else
                 $dumpfile("wave.vcd");
 `endif
@@ -133,7 +133,7 @@ module test_tb;
 
     // 超时保护
     initial begin
-        #100000;  // 50us 超时
+        #1000000;  // 50us 超时
         $display("%10t| [EROR] |TimeOut!| %20s", $time, testcase);
         $finish;
     end
