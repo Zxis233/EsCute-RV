@@ -63,7 +63,8 @@ module IROM #(
             ;
             rom_file =
             // "rv32ui-p-lw"
-            "full_test"
+            "full_test_mul"
+            // "mul"
             // "addi"
             ;
             $readmemh({rom_prefix,rom_file,".hex"}, rom_data, 0, 16383);

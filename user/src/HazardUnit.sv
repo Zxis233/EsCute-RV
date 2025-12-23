@@ -41,6 +41,9 @@ module HazardUnit (
     input  logic [ 4:0] mul_rd_s4,           // 乘法器第四级目标寄存器
     input  logic        is_mul_instr_ID,     // ID级是否为乘法指令
     input  logic        is_mul_instr_EX,     // EX级是否为乘法指令
+    // ID级目的寄存器地址和写使能 (用于WAW冒险检测)
+    input  logic [ 4:0] wR_ID,               // ID级目的寄存器地址
+    input  logic        rf_we_ID,            // ID级寄存器写使能
     // PC保持信号
     output logic        keep_pc,
     // IF/ID停顿信号
@@ -173,6 +176,32 @@ module HazardUnit (
     logic mul_struct_hazard;
     assign mul_struct_hazard = is_mul_instr_ID && mul_stage1_busy;
 
+    // WAW (Write-After-Write) 冒险判断
+    // 当ID级的指令要写入的寄存器与乘法器中正在计算的目标寄存器相同时
+    // 需要停顿流水线，确保乘法器先完成写回，保持程序顺序语义
+    logic mul_waw_hazard;
+    logic mul_waw_ex_hazard;  // EX级的MUL指令导致的WAW冒险
+    logic mul_waw_s1_hazard;  // 乘法器第一级的WAW冒险
+    logic mul_waw_s2_hazard;  // 乘法器第二级的WAW冒险
+    logic mul_waw_s3_hazard;  // 乘法器第三级的WAW冒险
+    logic mul_waw_s4_hazard;  // 乘法器第四级的WAW冒险
+
+    always_comb begin
+        // EX级的乘法指令导致的WAW冒险
+        // 当ID级的指令要写入与EX级MUL相同的目标寄存器时
+        mul_waw_ex_hazard = is_mul_instr_EX && rf_we_ID && (wR_EX == wR_ID) && (wR_ID != 5'b0);
+
+        // 乘法器各级的WAW冒险
+        // 当ID级的指令要写入与乘法器流水线中某级相同的目标寄存器时
+        mul_waw_s1_hazard = mul_stage1_busy && rf_we_ID && (mul_rd_s1 == wR_ID) && (wR_ID != 5'b0);
+        mul_waw_s2_hazard = mul_stage2_busy && rf_we_ID && (mul_rd_s2 == wR_ID) && (wR_ID != 5'b0);
+        mul_waw_s3_hazard = mul_stage3_busy && rf_we_ID && (mul_rd_s3 == wR_ID) && (wR_ID != 5'b0);
+        mul_waw_s4_hazard = mul_stage4_busy && rf_we_ID && (mul_rd_s4 == wR_ID) && (wR_ID != 5'b0);
+
+        mul_waw_hazard = mul_waw_ex_hazard || mul_waw_s1_hazard || mul_waw_s2_hazard ||
+            mul_waw_s3_hazard || mul_waw_s4_hazard;
+    end
+
     // [TODO] 静态分支预测
     // [TODO] 动态分支预测
     logic branch_predicted_result;
@@ -182,7 +211,7 @@ module HazardUnit (
 
     // 流水线冲刷与停顿
     logic any_hazard;
-    assign any_hazard = load_use_hazard || mul_use_hazard || mul_struct_hazard;
+    assign any_hazard = load_use_hazard || mul_use_hazard || mul_struct_hazard || mul_waw_hazard;
 
     always_comb begin
         keep_pc     = any_hazard ? 1'b1 : 1'b0;

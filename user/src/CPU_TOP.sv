@@ -496,6 +496,9 @@ module CPU_TOP (
         .mul_rd_s4         (mul_rd_s4),
         .is_mul_instr_ID   (is_mul_instr_ID),
         .is_mul_instr_EX   (is_mul_instr_EX),
+        // WAW冒险检测所需的ID级信号
+        .wR_ID             (wR_ID),
+        .rf_we_ID          (rf_we_ID),
         // 输出
         .keep_pc           (keep_PC),
         .stall_IF_ID       (stall_IF_ID),
