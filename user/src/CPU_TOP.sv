@@ -63,6 +63,7 @@ module CPU_TOP (
     logic                   mul_stage3_busy;
     logic                   mul_stage4_busy;
     logic [4:0]             mul_rd_s1, mul_rd_s2, mul_rd_s3, mul_rd_s4;
+    logic [4:0]             mul_cancel_rd;    // WAW hazard: cancel MUL write to this register
 
     logic flush_IF_ID, flush_ID_EX;
     logic keep_PC, stall_IF_ID;
@@ -282,6 +283,7 @@ module CPU_TOP (
         .mul_src2_i      (rf_rd2_EX),
         .mul_rd_i        (wR_EX),
         .flush_i         (take_branch_NextPC),  // 分支跳转时冲刷乘法器
+        .cancel_rd_i     (mul_cancel_rd),       // WAW hazard: cancel write to this register
         .mul_valid_o     (mul_valid_o),
         .mul_result_o    (mul_result),
         .mul_rd_o        (mul_rd_o),
@@ -439,7 +441,6 @@ module CPU_TOP (
     // 对于同步DRAM，DRAM的spo已经是寄存器输出，在WB级直接使用以避免多余延迟
     // DRAM_output_data在整个WB周期内保持稳定，可以安全地被寄存器堆采样
     // 现在使用双写端口寄存器堆，主流水线和乘法器可以同时写回
-
     always_comb begin
         if (wd_sel_WB == `WD_SEL_FROM_DRAM) begin
             rf_wd_WB_from_ALU_or_DRAM = load_data_WB;
@@ -507,7 +508,8 @@ module CPU_TOP (
         .fwd_rD1e_EX       (fwd_rD1e_EX),
         .fwd_rD2e_EX       (fwd_rD2e_EX),
         .fwd_rD1_EX        (fwd_rD1_EX),
-        .fwd_rD2_EX        (fwd_rD2_EX)
+        .fwd_rD2_EX        (fwd_rD2_EX),
+        .mul_cancel_rd     (mul_cancel_rd)
     );
 
 

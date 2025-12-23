@@ -1,39 +1,37 @@
 `include "include/defines.svh"
-// 4-stage pipelined multiplier module with distributed computation
-// Uses partial product method to split multiplication across 4 cycles
-// This reduces critical path compared to single-cycle multiplication
-// Parallel with EX stage - does not block non-dependent instructions
+// 四级流水线乘法器模块
+// 独立于EX级实现 支持流水线暂停和清空
+// 并行变延迟操作 不阻塞主流水线
 
 module MUL (
     input logic clk,
     input logic rst_n,
 
     // Input from ID stage
-    input logic        mul_valid_i,  // Multiplication operation valid
-    input logic [ 1:0] mul_op_i,     // Multiplication operation type
-    input logic [31:0] mul_src1_i,   // Source operand 1
-    input logic [31:0] mul_src2_i,   // Source operand 2
-    input logic [ 4:0] mul_rd_i,     // Destination register
-    input logic        flush_i,      // Pipeline flush
-
+    input  logic        mul_valid_i,        // Multiplication operation valid
+    input  logic [ 1:0] mul_op_i,           // Multiplication operation type
+    input  logic [31:0] mul_src1_i,         // Source operand 1
+    input  logic [31:0] mul_src2_i,         // Source operand 2
+    input  logic [ 4:0] mul_rd_i,           // Destination register
+    input  logic        flush_i,            // Pipeline flush
+    // WAW hazard handling - cancel write to specified register
+    input  logic [ 4:0] cancel_rd_i,        // Register to cancel write (0 = no cancel)
     // Output to WB stage
-    output logic        mul_valid_o,   // Result valid
-    output logic [31:0] mul_result_o,  // Multiplication result
-    output logic [ 4:0] mul_rd_o,      // Destination register
-    output logic        mul_rf_we_o,   // Register file write enable
-
+    output logic        mul_valid_o,        // Result valid
+    output logic [31:0] mul_result_o,       // Multiplication result
+    output logic [ 4:0] mul_rd_o,           // Destination register
+    output logic        mul_rf_we_o,        // Register file write enable
     // Pipeline status
-    output logic mul_busy_o,         // Multiplier is busy (any stage occupied)
-    output logic mul_stage1_busy_o,  // Stage 1 is occupied
-    output logic mul_stage2_busy_o,  // Stage 2 is occupied
-    output logic mul_stage3_busy_o,  // Stage 3 is occupied
-    output logic mul_stage4_busy_o,  // Stage 4 is occupied
-
+    output logic        mul_busy_o,         // Multiplier is busy (any stage occupied)
+    output logic        mul_stage1_busy_o,  // Stage 1 is occupied
+    output logic        mul_stage2_busy_o,  // Stage 2 is occupied
+    output logic        mul_stage3_busy_o,  // Stage 3 is occupied
+    output logic        mul_stage4_busy_o,  // Stage 4 is occupied
     // Hazard detection outputs - destination registers in each stage
-    output logic [4:0] mul_rd_s1_o,  // Stage 1 destination register
-    output logic [4:0] mul_rd_s2_o,  // Stage 2 destination register
-    output logic [4:0] mul_rd_s3_o,  // Stage 3 destination register
-    output logic [4:0] mul_rd_s4_o   // Stage 4 destination register
+    output logic [ 4:0] mul_rd_s1_o,        // Stage 1 destination register
+    output logic [ 4:0] mul_rd_s2_o,        // Stage 2 destination register
+    output logic [ 4:0] mul_rd_s3_o,        // Stage 3 destination register
+    output logic [ 4:0] mul_rd_s4_o         // Stage 4 destination register
 );
 
     // Multiplication operation types
@@ -61,6 +59,7 @@ module MUL (
     logic       s1_valid;
     logic [1:0] s1_op;
     logic [4:0] s1_rd;
+    logic       s1_canceled;  // Write canceled due to WAW
     logic signed [16:0] s1_a_hi, s1_b_hi;  // Upper 17 bits (with sign)
     logic [15:0] s1_a_lo, s1_b_lo;  // Lower 16 bits (unsigned)
     logic [31:0] s1_pp_ll;  // Partial product: A_lo * B_lo
@@ -69,6 +68,7 @@ module MUL (
     logic        s2_valid;
     logic [ 1:0] s2_op;
     logic [ 4:0] s2_rd;
+    logic        s2_canceled;  // Write canceled due to WAW
     logic signed [16:0] s2_a_hi, s2_b_hi;
     logic        [31:0] s2_pp_ll;
     logic signed [32:0] s2_pp_lh;  // Partial product: A_lo * B_hi
@@ -78,6 +78,7 @@ module MUL (
     logic               s3_valid;
     logic        [ 1:0] s3_op;
     logic        [ 4:0] s3_rd;
+    logic               s3_canceled;  // Write canceled due to WAW
     logic        [31:0] s3_pp_ll;
     logic signed [33:0] s3_pp_mid;  // Sum of middle partial products
     logic signed [33:0] s3_pp_hh;  // Partial product: A_hi * B_hi
@@ -86,6 +87,7 @@ module MUL (
     logic               s4_valid;
     logic        [ 1:0] s4_op;
     logic        [ 4:0] s4_rd;
+    logic               s4_canceled;  // Write canceled due to WAW
     logic        [63:0] s4_product;  // Final 64-bit product
 
     // Combinational signals for stage 1
@@ -120,33 +122,37 @@ module MUL (
 
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
-            s1_valid <= 1'b0;
-            s1_op    <= 2'b0;
-            s1_rd    <= 5'b0;
-            s1_a_hi  <= 17'b0;
-            s1_b_hi  <= 17'b0;
-            s1_a_lo  <= 16'b0;
-            s1_b_lo  <= 16'b0;
-            s1_pp_ll <= 32'b0;
+            s1_valid    <= 1'b0;
+            s1_op       <= 2'b0;
+            s1_rd       <= 5'b0;
+            s1_canceled <= 1'b0;
+            s1_a_hi     <= 17'b0;
+            s1_b_hi     <= 17'b0;
+            s1_a_lo     <= 16'b0;
+            s1_b_lo     <= 16'b0;
+            s1_pp_ll    <= 32'b0;
         end else if (flush_i) begin
-            s1_valid <= 1'b0;
-            s1_op    <= 2'b0;
-            s1_rd    <= 5'b0;
-            s1_a_hi  <= 17'b0;
-            s1_b_hi  <= 17'b0;
-            s1_a_lo  <= 16'b0;
-            s1_b_lo  <= 16'b0;
-            s1_pp_ll <= 32'b0;
+            s1_valid    <= 1'b0;
+            s1_op       <= 2'b0;
+            s1_rd       <= 5'b0;
+            s1_canceled <= 1'b0;
+            s1_a_hi     <= 17'b0;
+            s1_b_hi     <= 17'b0;
+            s1_a_lo     <= 16'b0;
+            s1_b_lo     <= 16'b0;
+            s1_pp_ll    <= 32'b0;
         end else begin
-            s1_valid <= mul_valid_i;
-            s1_op    <= mul_op_i;
-            s1_rd    <= mul_rd_i;
+            s1_valid    <= mul_valid_i;
+            s1_op       <= mul_op_i;
+            s1_rd       <= mul_rd_i;
+            // Check if this stage should be canceled (WAW without RAW)
+            s1_canceled <= (cancel_rd_i != 5'b0) && (cancel_rd_i == mul_rd_i) && mul_valid_i;
             // Store split operands for next stage
-            s1_a_hi  <= src1_signed[32:16];
-            s1_b_hi  <= src2_signed[32:16];
-            s1_a_lo  <= src1_signed[15:0];
-            s1_b_lo  <= src2_signed[15:0];
-            s1_pp_ll <= pp_ll_comb;
+            s1_a_hi     <= src1_signed[32:16];
+            s1_b_hi     <= src2_signed[32:16];
+            s1_a_lo     <= src1_signed[15:0];
+            s1_b_lo     <= src2_signed[15:0];
+            s1_pp_ll    <= pp_ll_comb;
         end
     end
 
@@ -162,29 +168,34 @@ module MUL (
 
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
-            s2_valid <= 1'b0;
-            s2_op    <= 2'b0;
-            s2_rd    <= 5'b0;
-            s2_a_hi  <= 17'b0;
-            s2_b_hi  <= 17'b0;
-            s2_pp_ll <= 32'b0;
-            s2_pp_lh <= 33'b0;
-            s2_pp_hl <= 33'b0;
+            s2_valid    <= 1'b0;
+            s2_op       <= 2'b0;
+            s2_rd       <= 5'b0;
+            s2_canceled <= 1'b0;
+            s2_a_hi     <= 17'b0;
+            s2_b_hi     <= 17'b0;
+            s2_pp_ll    <= 32'b0;
+            s2_pp_lh    <= 33'b0;
+            s2_pp_hl    <= 33'b0;
         end else if (flush_i) begin
-            s2_valid <= 1'b0;
-            s2_op    <= 2'b0;
-            s2_rd    <= 5'b0;
-            s2_a_hi  <= 17'b0;
-            s2_b_hi  <= 17'b0;
-            s2_pp_ll <= 32'b0;
-            s2_pp_lh <= 33'b0;
-            s2_pp_hl <= 33'b0;
+            s2_valid    <= 1'b0;
+            s2_op       <= 2'b0;
+            s2_rd       <= 5'b0;
+            s2_canceled <= 1'b0;
+            s2_a_hi     <= 17'b0;
+            s2_b_hi     <= 17'b0;
+            s2_pp_ll    <= 32'b0;
+            s2_pp_lh    <= 33'b0;
+            s2_pp_hl    <= 33'b0;
         end else begin
             s2_valid <= s1_valid;
-            s2_op    <= s1_op;
-            s2_rd    <= s1_rd;
-            s2_a_hi  <= s1_a_hi;
-            s2_b_hi  <= s1_b_hi;
+            s2_op <= s1_op;
+            s2_rd <= s1_rd;
+            // Propagate cancel or detect new cancel for this stage
+            s2_canceled <= s1_canceled ||
+                ((cancel_rd_i != 5'b0) && (cancel_rd_i == s1_rd) && s1_valid);
+            s2_a_hi <= s1_a_hi;
+            s2_b_hi <= s1_b_hi;
             s2_pp_ll <= s1_pp_ll;
             s2_pp_lh <= pp_lh_comb;
             s2_pp_hl <= pp_hl_comb;
@@ -204,26 +215,31 @@ module MUL (
 
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
-            s3_valid  <= 1'b0;
-            s3_op     <= 2'b0;
-            s3_rd     <= 5'b0;
-            s3_pp_ll  <= 32'b0;
-            s3_pp_mid <= 34'b0;
-            s3_pp_hh  <= 34'b0;
+            s3_valid    <= 1'b0;
+            s3_op       <= 2'b0;
+            s3_rd       <= 5'b0;
+            s3_canceled <= 1'b0;
+            s3_pp_ll    <= 32'b0;
+            s3_pp_mid   <= 34'b0;
+            s3_pp_hh    <= 34'b0;
         end else if (flush_i) begin
-            s3_valid  <= 1'b0;
-            s3_op     <= 2'b0;
-            s3_rd     <= 5'b0;
-            s3_pp_ll  <= 32'b0;
-            s3_pp_mid <= 34'b0;
-            s3_pp_hh  <= 34'b0;
+            s3_valid    <= 1'b0;
+            s3_op       <= 2'b0;
+            s3_rd       <= 5'b0;
+            s3_canceled <= 1'b0;
+            s3_pp_ll    <= 32'b0;
+            s3_pp_mid   <= 34'b0;
+            s3_pp_hh    <= 34'b0;
         end else begin
-            s3_valid  <= s2_valid;
-            s3_op     <= s2_op;
-            s3_rd     <= s2_rd;
-            s3_pp_ll  <= s2_pp_ll;
+            s3_valid <= s2_valid;
+            s3_op <= s2_op;
+            s3_rd <= s2_rd;
+            // Propagate cancel or detect new cancel for this stage
+            s3_canceled <= s2_canceled ||
+                ((cancel_rd_i != 5'b0) && (cancel_rd_i == s2_rd) && s2_valid);
+            s3_pp_ll <= s2_pp_ll;
             s3_pp_mid <= pp_mid_comb;
-            s3_pp_hh  <= pp_hh_comb;
+            s3_pp_hh <= pp_hh_comb;
         end
     end
 
@@ -244,19 +260,24 @@ module MUL (
 
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
-            s4_valid   <= 1'b0;
-            s4_op      <= 2'b0;
-            s4_rd      <= 5'b0;
-            s4_product <= 64'b0;
+            s4_valid    <= 1'b0;
+            s4_op       <= 2'b0;
+            s4_rd       <= 5'b0;
+            s4_canceled <= 1'b0;
+            s4_product  <= 64'b0;
         end else if (flush_i) begin
-            s4_valid   <= 1'b0;
-            s4_op      <= 2'b0;
-            s4_rd      <= 5'b0;
-            s4_product <= 64'b0;
+            s4_valid    <= 1'b0;
+            s4_op       <= 2'b0;
+            s4_rd       <= 5'b0;
+            s4_canceled <= 1'b0;
+            s4_product  <= 64'b0;
         end else begin
-            s4_valid   <= s3_valid;
-            s4_op      <= s3_op;
-            s4_rd      <= s3_rd;
+            s4_valid <= s3_valid;
+            s4_op <= s3_op;
+            s4_rd <= s3_rd;
+            // Propagate cancel or detect new cancel for this stage
+            s4_canceled <= s3_canceled ||
+                ((cancel_rd_i != 5'b0) && (cancel_rd_i == s3_rd) && s3_valid);
             s4_product <= product_comb;
         end
     end
@@ -272,21 +293,27 @@ module MUL (
     end
 
     // Output valid and register signals
-    assign mul_valid_o       = s4_valid;
-    assign mul_rd_o          = s4_rd;
-    assign mul_rf_we_o       = s4_valid && (s4_rd != 5'b0);  // Write enable if valid and rd != x0
+    assign mul_valid_o = s4_valid && !s4_canceled;  // Don't signal valid if canceled
+    assign mul_rd_o    = s4_rd;
+
+    // Write enable: valid, not canceled (either from previous cycles or current cycle), and rd != x0
+    // Note: s4_canceled tracks cancellations from when the instruction was in earlier stages.
+    // We also need to check current-cycle cancellation for s4 since it wasn't captured in s4_canceled yet.
+    logic s4_cancel_current_cycle;
+    assign s4_cancel_current_cycle = (cancel_rd_i != 5'b0) && (cancel_rd_i == s4_rd);
+    assign mul_rf_we_o = s4_valid && !s4_canceled && !s4_cancel_current_cycle && (s4_rd != 5'b0);
 
     // Status signals
-    assign mul_busy_o        = s1_valid || s2_valid || s3_valid || s4_valid;
+    assign mul_busy_o = s1_valid || s2_valid || s3_valid || s4_valid;
     assign mul_stage1_busy_o = s1_valid;
     assign mul_stage2_busy_o = s2_valid;
     assign mul_stage3_busy_o = s3_valid;
     assign mul_stage4_busy_o = s4_valid;
 
     // Hazard detection outputs
-    assign mul_rd_s1_o       = s1_rd;
-    assign mul_rd_s2_o       = s2_rd;
-    assign mul_rd_s3_o       = s3_rd;
-    assign mul_rd_s4_o       = s4_rd;
+    assign mul_rd_s1_o = s1_rd;
+    assign mul_rd_s2_o = s2_rd;
+    assign mul_rd_s3_o = s3_rd;
+    assign mul_rd_s4_o = s4_rd;
 
 endmodule

@@ -57,7 +57,9 @@ module HazardUnit (
     output logic        fwd_rD2e_EX,
     // 前递数据
     output logic [31:0] fwd_rD1_EX,
-    output logic [31:0] fwd_rD2_EX
+    output logic [31:0] fwd_rD2_EX,
+    // 乘法器写回无效化信号 (WAW冒险时取消MUL写回)
+    output logic [ 4:0] mul_cancel_rd
 );
 
     // RAW 冒险判断
@@ -176,30 +178,79 @@ module HazardUnit (
     logic mul_struct_hazard;
     assign mul_struct_hazard = is_mul_instr_ID && mul_stage1_busy;
 
-    // WAW (Write-After-Write) 冒险判断
-    // 当ID级的指令要写入的寄存器与乘法器中正在计算的目标寄存器相同时
-    // 需要停顿流水线，确保乘法器先完成写回，保持程序顺序语义
+    // WAW (Write-After-Write) 冒险处理
+    // 当ID级的指令要写入的寄存器与乘法器中正在计算的目标寄存器相同时，
+    // 有两种情况：
+    // 1. ID级指令同时READS该寄存器（有RAW依赖）=> 必须停顿等待MUL结果
+    // 2. ID级指令只WRITES该寄存器（无RAW依赖）=> 不需停顿，取消MUL写回
+    //
+    // 情况2中，后续指令会覆盖MUL的结果，所以MUL的结果应该被丢弃。
+    // 这通过mul_cancel_rd信号传递给MUL模块，使其取消对该寄存器的写回。
+
+    // 检测ID级是否也读取了与MUL目标相同的寄存器
+    logic id_reads_mul_ex_rd;  // ID级是否读取EX级MUL的目标寄存器
+    logic id_reads_mul_s1_rd;  // ID级是否读取MUL第一级的目标寄存器
+    logic id_reads_mul_s2_rd;  // ID级是否读取MUL第二级的目标寄存器
+    logic id_reads_mul_s3_rd;  // ID级是否读取MUL第三级的目标寄存器
+    logic id_reads_mul_s4_rd;  // ID级是否读取MUL第四级的目标寄存器
+
+    // WAW冒险信号 - 用于检测是否存在WAW（不一定需要停顿）
+    logic mul_waw_ex_conflict;  // EX级的MUL指令导致的WAW冲突
+    logic mul_waw_s1_conflict;  // 乘法器第一级的WAW冲突
+    logic mul_waw_s2_conflict;  // 乘法器第二级的WAW冲突
+    logic mul_waw_s3_conflict;  // 乘法器第三级的WAW冲突
+    logic mul_waw_s4_conflict;  // 乘法器第四级的WAW冲突
+
+    // 只有同时存在RAW依赖时才需要停顿
     logic mul_waw_hazard;
-    logic mul_waw_ex_hazard;  // EX级的MUL指令导致的WAW冒险
-    logic mul_waw_s1_hazard;  // 乘法器第一级的WAW冒险
-    logic mul_waw_s2_hazard;  // 乘法器第二级的WAW冒险
-    logic mul_waw_s3_hazard;  // 乘法器第三级的WAW冒险
-    logic mul_waw_s4_hazard;  // 乘法器第四级的WAW冒险
 
     always_comb begin
-        // EX级的乘法指令导致的WAW冒险
-        // 当ID级的指令要写入与EX级MUL相同的目标寄存器时
-        mul_waw_ex_hazard = is_mul_instr_EX && rf_we_ID && (wR_EX == wR_ID) && (wR_ID != 5'b0);
+        // 检测ID级是否读取MUL各级的目标寄存器
+        id_reads_mul_ex_rd = ((rR1_ID == wR_EX) && rs1_used_ID) ||
+            ((rR2_ID == wR_EX) && rs2_used_ID);
+        id_reads_mul_s1_rd = ((rR1_ID == mul_rd_s1) && rs1_used_ID) ||
+            ((rR2_ID == mul_rd_s1) && rs2_used_ID);
+        id_reads_mul_s2_rd = ((rR1_ID == mul_rd_s2) && rs1_used_ID) ||
+            ((rR2_ID == mul_rd_s2) && rs2_used_ID);
+        id_reads_mul_s3_rd = ((rR1_ID == mul_rd_s3) && rs1_used_ID) ||
+            ((rR2_ID == mul_rd_s3) && rs2_used_ID);
+        id_reads_mul_s4_rd = ((rR1_ID == mul_rd_s4) && rs1_used_ID) ||
+            ((rR2_ID == mul_rd_s4) && rs2_used_ID);
 
-        // 乘法器各级的WAW冒险
-        // 当ID级的指令要写入与乘法器流水线中某级相同的目标寄存器时
-        mul_waw_s1_hazard = mul_stage1_busy && rf_we_ID && (mul_rd_s1 == wR_ID) && (wR_ID != 5'b0);
-        mul_waw_s2_hazard = mul_stage2_busy && rf_we_ID && (mul_rd_s2 == wR_ID) && (wR_ID != 5'b0);
-        mul_waw_s3_hazard = mul_stage3_busy && rf_we_ID && (mul_rd_s3 == wR_ID) && (wR_ID != 5'b0);
-        mul_waw_s4_hazard = mul_stage4_busy && rf_we_ID && (mul_rd_s4 == wR_ID) && (wR_ID != 5'b0);
+        // WAW冲突检测（ID级要写入与MUL相同的目标寄存器）
+        mul_waw_ex_conflict = is_mul_instr_EX && rf_we_ID && (wR_EX == wR_ID) && (wR_ID != 5'b0);
+        mul_waw_s1_conflict = mul_stage1_busy && rf_we_ID && (mul_rd_s1 == wR_ID) &&
+            (wR_ID != 5'b0);
+        mul_waw_s2_conflict = mul_stage2_busy && rf_we_ID && (mul_rd_s2 == wR_ID) &&
+            (wR_ID != 5'b0);
+        mul_waw_s3_conflict = mul_stage3_busy && rf_we_ID && (mul_rd_s3 == wR_ID) &&
+            (wR_ID != 5'b0);
+        mul_waw_s4_conflict = mul_stage4_busy && rf_we_ID && (mul_rd_s4 == wR_ID) &&
+            (wR_ID != 5'b0);
 
-        mul_waw_hazard = mul_waw_ex_hazard || mul_waw_s1_hazard || mul_waw_s2_hazard ||
-            mul_waw_s3_hazard || mul_waw_s4_hazard;
+        // WAW冒险：只有当同时存在WAW冲突和RAW依赖时才需要停顿
+        // 如果只有WAW冲突但没有RAW依赖，后面的指令会覆盖MUL结果，无需等待
+        mul_waw_hazard = (mul_waw_ex_conflict && id_reads_mul_ex_rd) ||
+            (mul_waw_s1_conflict && id_reads_mul_s1_rd) ||
+            (mul_waw_s2_conflict && id_reads_mul_s2_rd) ||
+            (mul_waw_s3_conflict && id_reads_mul_s3_rd) ||
+            (mul_waw_s4_conflict && id_reads_mul_s4_rd);
+    end
+
+    // 生成MUL写回取消信号
+    // 当存在纯WAW冲突（无RAW依赖）时，取消MUL的写回
+    // 注意：这个信号需要传递到MUL模块，使其在写回时跳过该寄存器
+    logic pure_waw_conflict;  // WAW conflict without RAW dependency
+    always_comb begin
+        // 检测是否存在纯WAW冲突（有WAW但没有对应的RAW依赖）
+        pure_waw_conflict = (mul_waw_ex_conflict && !id_reads_mul_ex_rd) ||
+            (mul_waw_s1_conflict && !id_reads_mul_s1_rd) ||
+            (mul_waw_s2_conflict && !id_reads_mul_s2_rd) ||
+            (mul_waw_s3_conflict && !id_reads_mul_s3_rd) ||
+            (mul_waw_s4_conflict && !id_reads_mul_s4_rd);
+
+        // 如果存在纯WAW冲突，使用wR_ID作为取消目标
+        mul_cancel_rd = pure_waw_conflict ? wR_ID : 5'b0;
     end
 
     // [TODO] 静态分支预测
