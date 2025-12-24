@@ -8,30 +8,25 @@ module MUL (
     input logic rst_n,
 
     // Input from ID stage
-    input  logic        mul_valid_i,        // Multiplication operation valid
-    input  logic [ 1:0] mul_op_i,           // Multiplication operation type
-    input  logic [31:0] mul_src1_i,         // Source operand 1
-    input  logic [31:0] mul_src2_i,         // Source operand 2
-    input  logic [ 4:0] mul_rd_i,           // Destination register
-    input  logic        flush_i,            // Pipeline flush
-    // WAW hazard handling - cancel write to specified register
-    input  logic [ 4:0] cancel_rd_i,        // Register to cancel write (0 = no cancel)
-    // Output to WB stage
-    output logic        mul_valid_o,        // Result valid
-    output logic [31:0] mul_result_o,       // Multiplication result
-    output logic [ 4:0] mul_rd_o,           // Destination register
-    output logic        mul_rf_we_o,        // Register file write enable
+    input  logic             mul_valid_i,
+    input  logic [ 1:0]      mul_op_i,
+    input  logic [31:0]      mul_src1_i,
+    input  logic [31:0]      mul_src2_i,
+    input  logic [ 4:0]      mul_rd_i,
+    // 流水线冲刷
+    input  logic             flush_i,
+    // WAW 冒险取消写回 高使能
+    input  logic [ 4:0]      cancel_rd_i,
+    // 输出到 WB 级
+    output logic             mul_valid_o,
+    output logic [31:0]      mul_result_o,
+    output logic [ 4:0]      mul_rd_o,
+    output logic             mul_rf_we_o,
     // Pipeline status
-    output logic        mul_busy_o,         // Multiplier is busy (any stage occupied)
-    output logic        mul_stage1_busy_o,  // Stage 1 is occupied
-    output logic        mul_stage2_busy_o,  // Stage 2 is occupied
-    output logic        mul_stage3_busy_o,  // Stage 3 is occupied
-    output logic        mul_stage4_busy_o,  // Stage 4 is occupied
+    output logic             mul_busy_o,        // Multiplier is busy (any stage occupied)
+    output logic [ 3:0]      mul_stage_busy_o,
     // Hazard detection outputs - destination registers in each stage
-    output logic [ 4:0] mul_rd_s1_o,        // Stage 1 destination register
-    output logic [ 4:0] mul_rd_s2_o,        // Stage 2 destination register
-    output logic [ 4:0] mul_rd_s3_o,        // Stage 3 destination register
-    output logic [ 4:0] mul_rd_s4_o         // Stage 4 destination register
+    output logic [ 3:0][4:0] mul_rd_s_o         // 4 个元素，每个 5-bit
 );
 
     // Multiplication operation types
@@ -304,16 +299,11 @@ module MUL (
     assign mul_rf_we_o = s4_valid && !s4_canceled && !s4_cancel_current_cycle && (s4_rd != 5'b0);
 
     // Status signals
-    assign mul_busy_o = s1_valid || s2_valid || s3_valid || s4_valid;
-    assign mul_stage1_busy_o = s1_valid;
-    assign mul_stage2_busy_o = s2_valid;
-    assign mul_stage3_busy_o = s3_valid;
-    assign mul_stage4_busy_o = s4_valid;
+    always_comb begin
+        mul_stage_busy_o = {s4_valid, s3_valid, s2_valid, s1_valid};
+        mul_busy_o       = |mul_stage_busy_o;
+    end
 
-    // Hazard detection outputs
-    assign mul_rd_s1_o = s1_rd;
-    assign mul_rd_s2_o = s2_rd;
-    assign mul_rd_s3_o = s3_rd;
-    assign mul_rd_s4_o = s4_rd;
+    assign mul_rd_s_o = {s4_rd, s3_rd, s2_rd, s1_rd};
 
 endmodule

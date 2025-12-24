@@ -1,68 +1,64 @@
 `include "include/defines.svh"
-
 module HazardUnit (
-    input  logic        clk,
-    input  logic        rst_n,
+    input  logic             clk,
+    input  logic             rst_n,
     // LOAD/MUL指令判断 (扩展到3位以支持WD_SEL_FROM_MUL)
-    input  logic [ 2:0] wd_sel_EX,
-    input  logic [ 2:0] wd_sel_MEM,
+    input  logic [ 2:0]      wd_sel_EX,
+    input  logic [ 2:0]      wd_sel_MEM,
     // 寄存器使用信号
-    input  logic        rs1_used_ID,
-    input  logic        rs2_used_ID,
+    input  logic             rs1_used_ID,
+    input  logic             rs2_used_ID,
     // ID级源寄存器地址
-    input  logic [ 4:0] rR1_ID,
-    input  logic [ 4:0] rR2_ID,
+    input  logic [ 4:0]      rR1_ID,
+    input  logic [ 4:0]      rR2_ID,
     // EX级目的寄存器地址
-    input  logic [ 4:0] wR_EX,
+    input  logic [ 4:0]      wR_EX,
     // MEM级目的寄存器地址
-    input  logic [ 4:0] wR_MEM,
+    input  logic [ 4:0]      wR_MEM,
     // WB级目的寄存器地址
-    input  logic [ 4:0] wR_WB,
+    input  logic [ 4:0]      wR_WB,
     // 写入数据使能
-    input  logic        rf_we_EX,
-    input  logic        rf_we_MEM,
-    input  logic        rf_we_WB,
+    input  logic             rf_we_EX,
+    input  logic             rf_we_MEM,
+    input  logic             rf_we_WB,
     // 写入数据
-    input  logic [31:0] rf_wd_EX,
-    input  logic [31:0] rf_wd_MEM,
-    input  logic [31:0] rf_wd_WB,
+    input  logic [31:0]      rf_wd_EX,
+    input  logic [31:0]      rf_wd_MEM,
+    input  logic [31:0]      rf_wd_WB,
     // 分支跳转信号
-    input  logic        take_branch_NextPC,
+    input  logic             take_branch_NextPC,
     // 预留的分支预测结果
-    input  logic        branch_predicted_i,
+    input  logic             branch_predicted_i,
     // 乘法器状态信号 (4级流水线)
-    input  logic        mul_stage1_busy,     // 乘法器第一级忙
-    input  logic        mul_stage2_busy,     // 乘法器第二级忙
-    input  logic        mul_stage3_busy,     // 乘法器第三级忙
-    input  logic        mul_stage4_busy,     // 乘法器第四级忙
-    input  logic [ 4:0] mul_rd_s1,           // 乘法器第一级目标寄存器
-    input  logic [ 4:0] mul_rd_s2,           // 乘法器第二级目标寄存器
-    input  logic [ 4:0] mul_rd_s3,           // 乘法器第三级目标寄存器
-    input  logic [ 4:0] mul_rd_s4,           // 乘法器第四级目标寄存器
-    input  logic        is_mul_instr_ID,     // ID级是否为乘法指令
-    input  logic        is_mul_instr_EX,     // EX级是否为乘法指令
+    // 约定：mul_stage_busy[0]=S1 ... [3]=S4；mul_rd_s[0]=S1 ... [3]=S4
+    input  logic [ 3:0]      mul_stage_busy,      // 乘法器各级流水线忙状态
+    input  logic [ 3:0][4:0] mul_rd_s,            // 乘法器各级流水线目标寄存器地址
+    input  logic             is_mul_instr_ID,     // ID级是否为乘法指令
+    input  logic             is_mul_instr_EX,     // EX级是否为乘法指令
     // ID级目的寄存器地址和写使能 (用于WAW冒险检测)
-    input  logic [ 4:0] wR_ID,               // ID级目的寄存器地址
-    input  logic        rf_we_ID,            // ID级寄存器写使能
+    input  logic [ 4:0]      wR_ID,               // ID级目的寄存器地址
+    input  logic             rf_we_ID,            // ID级寄存器写使能
     // PC保持信号
-    output logic        keep_pc,
+    output logic             keep_pc,
     // IF/ID停顿信号
-    output logic        stall_IF_ID,
+    output logic             stall_IF_ID,
     // IF/ID冲刷信号
-    output logic        flush_IF_ID,
+    output logic             flush_IF_ID,
     // ID/EX冲刷信号
-    output logic        flush_ID_EX,
+    output logic             flush_ID_EX,
     // 前递使能
-    output logic        fwd_rD1e_EX,
-    output logic        fwd_rD2e_EX,
+    output logic             fwd_rD1e_EX,
+    output logic             fwd_rD2e_EX,
     // 前递数据
-    output logic [31:0] fwd_rD1_EX,
-    output logic [31:0] fwd_rD2_EX,
+    output logic [31:0]      fwd_rD1_EX,
+    output logic [31:0]      fwd_rD2_EX,
     // 乘法器写回无效化信号 (WAW冒险时取消MUL写回)
-    output logic [ 4:0] mul_cancel_rd
+    output logic [ 4:0]      mul_cancel_rd
 );
 
-    // RAW 冒险判断
+    // ------------------------------------------------------------
+    // RAW 冒险判断 (用于前递/Load-Use 等)
+    // ------------------------------------------------------------
     // verilog_format: off
     logic RAW_1_rD1, RAW_1_rD2;
     logic RAW_2_rD1, RAW_2_rD2;
@@ -123,144 +119,73 @@ module HazardUnit (
 
     assign load_use_hazard     = load_use_hazard_ex || load_use_hazard_mem;
 
-    // 乘法指令冒险判断
-    // 乘法器是四级流水线，结果在第四级末尾才可用
-    // 如果ID级的指令依赖于乘法器中正在计算的结果，需要停顿
+    // ------------------------------------------------------------
+    // MUL 冒险判断（RAW + 结构冒险 + WAW处理）
+    // 乘法器 4 级流水：S1->S2->S3->S4（结果在S4末尾可用）
+    // ------------------------------------------------------------
     logic mul_use_hazard;
-    logic mul_ex_hazard_rD1, mul_ex_hazard_rD2;  // EX级的乘法指令导致的冒险
-    logic mul_s1_hazard_rD1, mul_s1_hazard_rD2;
-    logic mul_s2_hazard_rD1, mul_s2_hazard_rD2;
-    logic mul_s3_hazard_rD1, mul_s3_hazard_rD2;
-    logic mul_s4_hazard_rD1, mul_s4_hazard_rD2;
-
-    always_comb begin
-        // EX级的乘法指令导致的冒险
-        // 当MUL在EX级时，如果ID级的指令需要MUL的结果，必须停顿
-        // 流水线流程：EX -> MUL_S1 -> MUL_S2 -> MUL_S3 -> MUL_S4(结果可用)，需停顿3个周期
-        mul_ex_hazard_rD1 = is_mul_instr_EX && (wR_EX == rR1_ID) && rs1_used_ID && (wR_EX != 5'b0);
-        mul_ex_hazard_rD2 = is_mul_instr_EX && (wR_EX == rR2_ID) && rs2_used_ID && (wR_EX != 5'b0);
-
-        // 乘法器第一级的数据冒险
-        // 流水线流程：MUL_S1 -> MUL_S2 -> MUL_S3 -> MUL_S4(结果可用)，需停顿2个周期
-        mul_s1_hazard_rD1 = mul_stage1_busy && (mul_rd_s1 == rR1_ID) && rs1_used_ID &&
-            (mul_rd_s1 != 5'b0);
-        mul_s1_hazard_rD2 = mul_stage1_busy && (mul_rd_s1 == rR2_ID) && rs2_used_ID &&
-            (mul_rd_s1 != 5'b0);
-
-        // 乘法器第二级的数据冒险
-        // 流水线流程：MUL_S2 -> MUL_S3 -> MUL_S4(结果可用)，需停顿1个周期
-        mul_s2_hazard_rD1 = mul_stage2_busy && (mul_rd_s2 == rR1_ID) && rs1_used_ID &&
-            (mul_rd_s2 != 5'b0);
-        mul_s2_hazard_rD2 = mul_stage2_busy && (mul_rd_s2 == rR2_ID) && rs2_used_ID &&
-            (mul_rd_s2 != 5'b0);
-
-        // 乘法器第三级的数据冒险
-        // 流水线流程：MUL_S3 -> MUL_S4(结果可用)，结果将在下个周期可用
-        mul_s3_hazard_rD1 = mul_stage3_busy && (mul_rd_s3 == rR1_ID) && rs1_used_ID &&
-            (mul_rd_s3 != 5'b0);
-        mul_s3_hazard_rD2 = mul_stage3_busy && (mul_rd_s3 == rR2_ID) && rs2_used_ID &&
-            (mul_rd_s3 != 5'b0);
-
-        // 乘法器第四级的数据冒险
-        // 结果在当前周期末可用，但WB尚未完成，仍需停顿等待写回
-        mul_s4_hazard_rD1 = mul_stage4_busy && (mul_rd_s4 == rR1_ID) && rs1_used_ID &&
-            (mul_rd_s4 != 5'b0);
-        mul_s4_hazard_rD2 = mul_stage4_busy && (mul_rd_s4 == rR2_ID) && rs2_used_ID &&
-            (mul_rd_s4 != 5'b0);
-
-        mul_use_hazard = mul_ex_hazard_rD1 || mul_ex_hazard_rD2 || mul_s1_hazard_rD1 ||
-            mul_s1_hazard_rD2 || mul_s2_hazard_rD1 || mul_s2_hazard_rD2 || mul_s3_hazard_rD1 ||
-            mul_s3_hazard_rD2 || mul_s4_hazard_rD1 || mul_s4_hazard_rD2;
-    end
-
-    // 乘法指令结构冒险判断
-    // 如果乘法器第一级正在使用，新的乘法指令需要等待
     logic mul_struct_hazard;
-    assign mul_struct_hazard = is_mul_instr_ID && mul_stage1_busy;
-
-    // WAW (Write-After-Write) 冒险处理
-    // 当ID级的指令要写入的寄存器与乘法器中正在计算的目标寄存器相同时，
-    // 有两种情况：
-    // 1. ID级指令同时READS该寄存器（有RAW依赖）=> 必须停顿等待MUL结果
-    // 2. ID级指令只WRITES该寄存器（无RAW依赖）=> 不需停顿，取消MUL写回
-    //
-    // 情况2中，后续指令会覆盖MUL的结果，所以MUL的结果应该被丢弃。
-    // 这通过mul_cancel_rd信号传递给MUL模块，使其取消对该寄存器的写回。
-
-    // 检测ID级是否也读取了与MUL目标相同的寄存器
-    logic id_reads_mul_ex_rd;  // ID级是否读取EX级MUL的目标寄存器
-    logic id_reads_mul_s1_rd;  // ID级是否读取MUL第一级的目标寄存器
-    logic id_reads_mul_s2_rd;  // ID级是否读取MUL第二级的目标寄存器
-    logic id_reads_mul_s3_rd;  // ID级是否读取MUL第三级的目标寄存器
-    logic id_reads_mul_s4_rd;  // ID级是否读取MUL第四级的目标寄存器
-
-    // WAW冒险信号 - 用于检测是否存在WAW（不一定需要停顿）
-    logic mul_waw_ex_conflict;  // EX级的MUL指令导致的WAW冲突
-    logic mul_waw_s1_conflict;  // 乘法器第一级的WAW冲突
-    logic mul_waw_s2_conflict;  // 乘法器第二级的WAW冲突
-    logic mul_waw_s3_conflict;  // 乘法器第三级的WAW冲突
-    logic mul_waw_s4_conflict;  // 乘法器第四级的WAW冲突
-
-    // 只有同时存在RAW依赖时才需要停顿
     logic mul_waw_hazard;
+    logic pure_waw_conflict;
+
+    // 结构冒险：S1被占用时，新的乘法指令不能进入
+    assign mul_struct_hazard = is_mul_instr_ID && mul_stage_busy[0];
+
+    // 将 EX + S1..S4 统一成 5 路，便于循环处理
+    // mul_rd_all[0]=EX，mul_rd_all[1]=S1 ... mul_rd_all[4]=S4
+    logic [4:0][4:0] mul_rd_all;
+    logic [4:0]      mul_vld_all;
+    assign mul_rd_all  = {mul_rd_s, wR_EX};
+    assign mul_vld_all = {mul_stage_busy, is_mul_instr_EX};
+
+    // Debug/可视化向量（可在波形里直接看每一级是否命中）
+    logic [4:0] mul_raw_hit_r1;
+    logic [4:0] mul_raw_hit_r2;
+    logic [4:0] id_reads_mul_rd;
+    logic [4:0] mul_waw_conflict;
 
     always_comb begin
-        // 检测ID级是否读取MUL各级的目标寄存器
-        id_reads_mul_ex_rd = ((rR1_ID == wR_EX) && rs1_used_ID) ||
-            ((rR2_ID == wR_EX) && rs2_used_ID);
-        id_reads_mul_s1_rd = ((rR1_ID == mul_rd_s1) && rs1_used_ID) ||
-            ((rR2_ID == mul_rd_s1) && rs2_used_ID);
-        id_reads_mul_s2_rd = ((rR1_ID == mul_rd_s2) && rs1_used_ID) ||
-            ((rR2_ID == mul_rd_s2) && rs2_used_ID);
-        id_reads_mul_s3_rd = ((rR1_ID == mul_rd_s3) && rs1_used_ID) ||
-            ((rR2_ID == mul_rd_s3) && rs2_used_ID);
-        id_reads_mul_s4_rd = ((rR1_ID == mul_rd_s4) && rs1_used_ID) ||
-            ((rR2_ID == mul_rd_s4) && rs2_used_ID);
+        mul_raw_hit_r1   = '0;
+        mul_raw_hit_r2   = '0;
+        id_reads_mul_rd  = '0;
+        mul_waw_conflict = '0;
 
-        // WAW冲突检测（ID级要写入与MUL相同的目标寄存器）
-        mul_waw_ex_conflict = is_mul_instr_EX && rf_we_ID && (wR_EX == wR_ID) && (wR_ID != 5'b0);
-        mul_waw_s1_conflict = mul_stage1_busy && rf_we_ID && (mul_rd_s1 == wR_ID) &&
-            (wR_ID != 5'b0);
-        mul_waw_s2_conflict = mul_stage2_busy && rf_we_ID && (mul_rd_s2 == wR_ID) &&
-            (wR_ID != 5'b0);
-        mul_waw_s3_conflict = mul_stage3_busy && rf_we_ID && (mul_rd_s3 == wR_ID) &&
-            (wR_ID != 5'b0);
-        mul_waw_s4_conflict = mul_stage4_busy && rf_we_ID && (mul_rd_s4 == wR_ID) &&
-            (wR_ID != 5'b0);
+        for (int i = 0; i < 5; i++) begin
+            // RAW：ID读取 rR1/rR2，且命中任一在飞MUL的rd
+            mul_raw_hit_r1[i] = mul_vld_all[i] && (mul_rd_all[i] != 5'd0) && rs1_used_ID &&
+                (mul_rd_all[i] == rR1_ID);
+            mul_raw_hit_r2[i] = mul_vld_all[i] && (mul_rd_all[i] != 5'd0) && rs2_used_ID &&
+                (mul_rd_all[i] == rR2_ID);
 
-        // WAW冒险：只有当同时存在WAW冲突和RAW依赖时才需要停顿
-        // 如果只有WAW冲突但没有RAW依赖，后面的指令会覆盖MUL结果，无需等待
-        mul_waw_hazard = (mul_waw_ex_conflict && id_reads_mul_ex_rd) ||
-            (mul_waw_s1_conflict && id_reads_mul_s1_rd) ||
-            (mul_waw_s2_conflict && id_reads_mul_s2_rd) ||
-            (mul_waw_s3_conflict && id_reads_mul_s3_rd) ||
-            (mul_waw_s4_conflict && id_reads_mul_s4_rd);
+            // ID是否读取了该rd（用于区分 WAW 需要停顿 / 仅取消写回）
+            id_reads_mul_rd[i] = (mul_rd_all[i] != 5'd0) &&
+                ((rs1_used_ID && (rR1_ID == mul_rd_all[i])) ||
+                 (rs2_used_ID && (rR2_ID == mul_rd_all[i])));
+
+            // WAW冲突：ID将写 wR_ID，且与某级MUL rd 相同
+            mul_waw_conflict[i] = mul_vld_all[i] && rf_we_ID && (wR_ID != 5'd0) &&
+                (mul_rd_all[i] == wR_ID);
+        end
+
+        mul_use_hazard    = (|mul_raw_hit_r1) || (|mul_raw_hit_r2);
+
+        // WAW冒险：只有 WAW + 同时存在RAW读依赖 才需要停顿
+        mul_waw_hazard    = |(mul_waw_conflict & id_reads_mul_rd);
+        pure_waw_conflict = |(mul_waw_conflict & ~id_reads_mul_rd);
     end
 
-    // 生成MUL写回取消信号
-    // 当存在纯WAW冲突（无RAW依赖）时，取消MUL的写回
-    // 注意：这个信号需要传递到MUL模块，使其在写回时跳过该寄存器
-    logic pure_waw_conflict;  // WAW conflict without RAW dependency
-    always_comb begin
-        // 检测是否存在纯WAW冲突（有WAW但没有对应的RAW依赖）
-        pure_waw_conflict = (mul_waw_ex_conflict && !id_reads_mul_ex_rd) ||
-            (mul_waw_s1_conflict && !id_reads_mul_s1_rd) ||
-            (mul_waw_s2_conflict && !id_reads_mul_s2_rd) ||
-            (mul_waw_s3_conflict && !id_reads_mul_s3_rd) ||
-            (mul_waw_s4_conflict && !id_reads_mul_s4_rd);
+    // 纯WAW冲突（无RAW依赖）时，取消MUL对该寄存器的写回
+    assign mul_cancel_rd = pure_waw_conflict ? wR_ID : 5'd0;
 
-        // 如果存在纯WAW冲突，使用wR_ID作为取消目标
-        mul_cancel_rd = pure_waw_conflict ? wR_ID : 5'b0;
-    end
-
-    // [TODO] 静态分支预测
-    // [TODO] 动态分支预测
+    // [TODO] 静态/动态分支预测
     logic branch_predicted_result;
-    // 此处设置为静态不预测 因此获取EX级的跳转结果
+    // 目前：不预测，使用EX级实际跳转结果
     // assign branch_predicted_result = branch_predicted_i;
     assign branch_predicted_result = take_branch_NextPC;
 
+    // ------------------------------------------------------------
     // 流水线冲刷与停顿
+    // ------------------------------------------------------------
     logic any_hazard;
     assign any_hazard = load_use_hazard || mul_use_hazard || mul_struct_hazard || mul_waw_hazard;
 

@@ -51,19 +51,16 @@ module CPU_TOP (
 
     // 乘法器相关信号
     logic                   is_mul_instr_ID, is_mul_instr_EX;
-    logic [1:0]                   mul_op_ID,       mul_op_EX;
+    logic [1:0]                mul_op_ID,       mul_op_EX;
     logic                   mul_valid_i;
     logic                   mul_valid_o;
     logic [31:0]            mul_result;
-    logic [4:0]             mul_rd_o;
+    logic [ 4:0]            mul_rd_o;
     logic                   mul_rf_we_o;
     logic                   mul_busy;
-    logic                   mul_stage1_busy;
-    logic                   mul_stage2_busy;
-    logic                   mul_stage3_busy;
-    logic                   mul_stage4_busy;
-    logic [4:0]             mul_rd_s1, mul_rd_s2, mul_rd_s3, mul_rd_s4;
-    logic [4:0]             mul_cancel_rd;    // WAW hazard: cancel MUL write to this register
+    logic [ 3:0]            mul_stage_busy;
+    logic [ 3:0][4:0]       mul_rd_s;
+    logic [ 4:0]            mul_cancel_rd;    // WAW hazard: cancel MUL write to this register
 
     logic flush_IF_ID, flush_ID_EX;
     logic keep_PC, stall_IF_ID;
@@ -289,14 +286,8 @@ module CPU_TOP (
         .mul_rd_o        (mul_rd_o),
         .mul_rf_we_o     (mul_rf_we_o),
         .mul_busy_o      (mul_busy),
-        .mul_stage1_busy_o(mul_stage1_busy),
-        .mul_stage2_busy_o(mul_stage2_busy),
-        .mul_stage3_busy_o(mul_stage3_busy),
-        .mul_stage4_busy_o(mul_stage4_busy),
-        .mul_rd_s1_o     (mul_rd_s1),
-        .mul_rd_s2_o     (mul_rd_s2),
-        .mul_rd_s3_o     (mul_rd_s3),
-        .mul_rd_s4_o     (mul_rd_s4)
+        .mul_stage_busy_o(mul_stage_busy),
+        .mul_rd_s_o      (mul_rd_s)
     );
 
     // NextPC 计算
@@ -487,14 +478,8 @@ module CPU_TOP (
         .take_branch_NextPC(take_branch_NextPC),
         .branch_predicted_i(),
         // 乘法器状态信号 (4级流水线)
-        .mul_stage1_busy   (mul_stage1_busy),
-        .mul_stage2_busy   (mul_stage2_busy),
-        .mul_stage3_busy   (mul_stage3_busy),
-        .mul_stage4_busy   (mul_stage4_busy),
-        .mul_rd_s1         (mul_rd_s1),
-        .mul_rd_s2         (mul_rd_s2),
-        .mul_rd_s3         (mul_rd_s3),
-        .mul_rd_s4         (mul_rd_s4),
+        .mul_stage_busy    (mul_stage_busy),
+        .mul_rd_s          (mul_rd_s),
         .is_mul_instr_ID   (is_mul_instr_ID),
         .is_mul_instr_EX   (is_mul_instr_EX),
         // WAW冒险检测所需的ID级信号
