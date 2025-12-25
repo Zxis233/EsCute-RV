@@ -126,26 +126,23 @@ module CPU_TOP (
 
     logic [31:0] rf_wd_WB_from_ALU_or_DRAM;
     RegisterF u_registerf (
-        .clk  (clk),
+        .clk   (clk),
         // .rst_n(rst_n),
         // 主流水线写端口
-        .rf_we(rf_we_WB),
-        .wR   (wR_WB),
-        .wD   (rf_wd_WB_from_ALU_or_DRAM),
+        .rf_we (rf_we_WB),
+        .wR    (wR_WB),
+        .wD    (rf_wd_WB_from_ALU_or_DRAM),
         // 乘法器写端口
         .rf_we2(mul_rf_we_o),
         .wR2   (mul_rd_o),
         .wD2   (mul_result),
         // 读地址端口
-        .rR1  (rR1),
-        .rR2  (rR2),
+        .rR1   (rR1),
+        .rR2   (rR2),
         // 读数据端口
-        .rD1  (rf_rd1_ID),
-        .rD2  (rf_rd2_ID)
+        .rD1   (rf_rd1_ID),
+        .rD2   (rf_rd2_ID)
     );
-
-
-    // output declaration of module Decoder
 
     logic rs1_used_ID;
     logic rs2_used_ID;
@@ -349,20 +346,18 @@ module CPU_TOP (
 
     // LoadStoreUnit模块 - MEM级只处理Store操作
     logic [31:0] DRAM_input_data;  // LSU处理后数据
-    logic [31:0] DRAM_output_data; // LSU从DRAM得到的数据
-    logic [3:0] dram_we_MEM_strbe;
+    logic [ 3:0] dram_we_MEM_strbe;
     // MEM级LSU仅用于Store处理，Load在WB级处理
-    LoadStoreUnit u_LoadStoreUnit_MEM(
-        .sl_type       (sl_type_MEM),
-        .addr          (alu_result_MEM),
-        .load_data_i   (32'b0),        // MEM级不使用load处理
-        .load_data_o   (),             // MEM级不使用load输出
-        .store_data_i  (rf_rd2_MEM),
-        .store_data_o  (DRAM_input_data),
-        .dram_we       (dram_we_MEM),
-        .wstrb         (dram_we_MEM_strbe)
+    StoreUnit u_StoreUnit_MEM (
+        .sl_type      (sl_type_MEM),
+        .addr         (alu_result_MEM),
+        .store_data_i (rf_rd2_MEM),
+        .store_data_o (DRAM_input_data),
+        .dram_we      (dram_we_MEM),
+        .wstrb        (dram_we_MEM_strbe)
     );
 
+    logic [31:0] DRAM_output_data;  // LSU从DRAM得到的数据
     // DRAM模块
     DRAM #(
         .ADDR_WIDTH(15)
@@ -417,15 +412,22 @@ module CPU_TOP (
     // WB级LoadStoreUnit - 专门处理Load操作
     // 使用WB级的sl_type和地址来正确处理DRAM读取的数据
     logic [31:0] load_data_WB;
-    LoadStoreUnit u_LoadStoreUnit_WB(
-        .sl_type       (sl_type_WB),
-        .addr          (alu_result_WB),
-        .load_data_i   (DRAM_output_data),  // DRAM的spo在WB级稳定可用
-        .load_data_o   (load_data_WB),
-        .store_data_i  (32'b0),             // WB级不使用store处理
-        .store_data_o  (),
-        .dram_we       (1'b0),              // WB级不写DRAM
-        .wstrb         ()
+    // LoadStoreUnit u_LoadStoreUnit_WB(
+    //     .sl_type       (sl_type_WB),
+    //     .addr          (alu_result_WB),
+    //     .load_data_i   (DRAM_output_data),  // DRAM的spo在WB级稳定可用
+    //     .load_data_o   (load_data_WB),
+    //     .store_data_i  (32'b0),             // WB级不使用store处理
+    //     .store_data_o  (),
+    //     .dram_we       (1'b0),              // WB级不写DRAM
+    //     .wstrb         ()
+    // );
+
+    LoadUnit u_LoadUnit_WB (
+        .sl_type    (sl_type_WB),
+        .addr       (alu_result_WB),
+        .load_data_i(DRAM_output_data),
+        .load_data_o(load_data_WB)
     );
 
     // 回写数据来源选择MUX
@@ -524,27 +526,27 @@ module CPU_TOP (
     end
 
 `ifdef DEBUG
-    `ifndef YOSYS
-        always_comb begin
-            if ($time > 0) begin
-                assert (pc_IF[1:0] == 2'b00)
-                else $error("CPU_TOP Error: PC is not word-aligned! PC=0x%h", pc_IF);
-                assert (!(dram_we_ID && rf_we_ID))
-                else $error("[%0t] Decoder Error: dram_we and rf_we are both high!", $time);
-                if (!rst_n) begin
-                    assert (pc_IF >= `INITIAL_PC)
-                    else
-                        $error("CPU_TOP Error: PC is less than INITIAL_PC after reset! PC=0x%h", pc_IF);
-                end
+`ifndef YOSYS
+    always_comb begin
+        if ($time > 0) begin
+            assert (pc_IF[1:0] == 2'b00)
+            else $error("CPU_TOP Error: PC is not word-aligned! PC=0x%h", pc_IF);
+            assert (!(dram_we_ID && rf_we_ID))
+            else $error("[%0t] Decoder Error: dram_we and rf_we are both high!", $time);
+            if (!rst_n) begin
+                assert (pc_IF >= `INITIAL_PC)
+                else
+                    $error("CPU_TOP Error: PC is less than INITIAL_PC after reset! PC=0x%h", pc_IF);
             end
         end
+    end
 
-    `else
-        property pc_reset_stable;
-            @(posedge clk) (!rst_n) |-> (pc_IF == `INITIAL_PC);
-        endproperty
-        assert property (pc_reset_stable);
-    `endif
+`else
+    property pc_reset_stable;
+        @(posedge clk) (!rst_n) |-> (pc_IF == `INITIAL_PC);
+    endproperty
+    assert property (pc_reset_stable);
+`endif
 `endif
 
 endmodule

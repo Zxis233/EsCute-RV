@@ -36,24 +36,10 @@ module DRAM #(
 
     // 同步写
     always_ff @(posedge clk) begin
-        if (we != 4'b0000) begin
-            // 按位写使能
-            // 这里禁止使用case-true 会只匹配第一个结果
-            // [HACK] 将合并输入数据放到LoadStoreUnit模块中处理
-            if (we[0]) ram_data[a][7:0] <= din[7:0];
-            if (we[1]) ram_data[a][15:8] <= din[15:8];
-            if (we[2]) ram_data[a][23:16] <= din[23:16];
-            if (we[3]) ram_data[a][31:24] <= din[31:24];
-        end
-        spo <= ram_data[a];  // 同步读
+        logic [31:0] mask;
+        mask = {{8{we[3]}}, {8{we[2]}}, {8{we[1]}}, {8{we[0]}}};
+        ram_data[a] <= (ram_data[a] & ~mask) | (din & mask);
+        spo         <= ram_data[a];
     end
 
-    // `ifdef DEBUG
-    //     logic [31:0] ram_data_debug_24, ram_data_debug_28, ram_data_debug_32;
-    //     always_comb begin
-    //         ram_data_debug_24 = ram_data[16'd24][31:0];
-    //         ram_data_debug_28 = ram_data[16'd28][31:0];
-    //         ram_data_debug_32 = ram_data[16'd32][31:0];
-    //     end
-    // `endif
 endmodule

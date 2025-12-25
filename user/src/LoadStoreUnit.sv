@@ -1,5 +1,4 @@
 // LoadStoreUnit模块横跨MEM和WB级
-// [HACK] 拆分为两部分以简化综合后设计
 module LoadStoreUnit (
     input  logic [ 3:0] sl_type,
     input  logic [31:0] addr,
@@ -10,7 +9,6 @@ module LoadStoreUnit (
     input  logic        dram_we,
     output logic [ 3:0] wstrb          // 按位写使能
 );
-    // [TODO] 不同的访存类型处理
     logic is_load, is_load_unsigned;
     always_comb begin
         is_load          = (sl_type[3] == 1'b0);
