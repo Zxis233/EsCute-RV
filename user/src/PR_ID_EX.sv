@@ -111,14 +111,14 @@ module PR_ID_EX (
     // ALUOp相关
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
-            alu_op_ex_o       <= 4'b0;
+            alu_op_ex_o       <= 5'b0;
             is_auipc_ex_o     <= 1'b0;
             alu_src2_sel_ex_o <= 1'b0;
             dram_we_ex_o      <= 1'b0;
-            sl_type_ex_o      <= 3'b0;
+            sl_type_ex_o      <= 4'b0;
             imm_ex_o          <= 32'b0;
         end else if (flush) begin
-            alu_op_ex_o       <= 4'b0;
+            alu_op_ex_o       <= 5'b0;
             is_auipc_ex_o     <= 1'b0;
             alu_src2_sel_ex_o <= 1'b0;
             dram_we_ex_o      <= 1'b0;
@@ -142,7 +142,7 @@ module PR_ID_EX (
             instr_valid_ex_o <= 1'b0;
 
             rf_we_ex_o       <= 1'b0;
-            wd_sel_ex_o      <= 2'b0;
+            wd_sel_ex_o      <= 3'b0;
             pc_jump_ex_o     <= 32'b0;
 
         end else if (flush && pc_id_i) begin  // 确保不是因为流水线暂停引起的冲刷
@@ -151,7 +151,7 @@ module PR_ID_EX (
             instr_valid_ex_o <= 1'b0;
 
             rf_we_ex_o       <= 1'b0;
-            wd_sel_ex_o      <= 2'b0;
+            wd_sel_ex_o      <= 3'b0;
             pc_jump_ex_o     <= 32'b0;
 
         end else begin

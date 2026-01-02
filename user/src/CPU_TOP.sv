@@ -87,7 +87,7 @@ module CPU_TOP (
 
 // ================= IF/ID 流水线寄存器 ===================
 
-    assign valid_IF = (pc_IF >= 0);  // 复位时指令无效
+    assign valid_IF = 1'b1;  // 初始始终有效 复位时由流水线寄存器控制
 
     PR_IF_ID u_PR_IF_ID (
         .clk             (clk),
@@ -361,10 +361,10 @@ module CPU_TOP (
     // DRAM模块
     DRAM #(
         // [HACK] Xilinx 可综合的位写入BRAM最大为12位地址宽度
-        .ADDR_WIDTH(15)
+        .ADDR_WIDTH(12)
     ) u_DRAM (
         .clk(clk),
-        .a  (alu_result_MEM[17:2]),  // 字节地址转换为字地址 (除以4)
+        .a  (alu_result_MEM[13:2]),  // 字节地址转换为字地址 (除以4)
         .spo(DRAM_output_data),
         .we (dram_we_MEM_strbe),
         .din(DRAM_input_data)
@@ -375,7 +375,6 @@ module CPU_TOP (
 
 // ================= MEM/WB 流水线寄存器 ===================
 
-    logic [31:0] DRAM_data_WB;
     logic [31:0] rf_wd_WB_from_ALU;
     PR_MEM_WB u_PR_MEM_WB (
         .clk              (clk),

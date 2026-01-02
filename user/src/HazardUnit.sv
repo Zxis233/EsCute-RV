@@ -190,10 +190,10 @@ module HazardUnit (
     assign any_hazard = load_use_hazard || mul_use_hazard || mul_struct_hazard || mul_waw_hazard;
 
     always_comb begin
-        keep_pc     = any_hazard ? 1'b1 : 1'b0;
-        stall_IF_ID = any_hazard ? 1'b1 : 1'b0;
-        flush_IF_ID = branch_predicted_result ? 1'b1 : 1'b0;
-        flush_ID_EX = (branch_predicted_result || any_hazard) ? 1'b1 : 1'b0;
+        keep_pc     = any_hazard;
+        stall_IF_ID = any_hazard;
+        flush_IF_ID = branch_predicted_result;
+        flush_ID_EX = (branch_predicted_result || any_hazard);
     end
 
 endmodule

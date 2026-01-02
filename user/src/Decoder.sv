@@ -36,8 +36,16 @@ module Decoder (
         opcode = instr[6:0];
         funct3 = instr[14:12];
         funct7 = instr[31:25];
-
     end
+
+    // 乘法指令预检测 - 用于简化后续逻辑
+    logic is_mul_funct3;
+    assign is_mul_funct3 = (funct3 == `FUNCT3_ADD_SUB_MUL) || (funct3 == `FUNCT3_SLL_MULH) ||
+                           (funct3 == `FUNCT3_SLT_MULHSU)  || (funct3 == `FUNCT3_SLTU_MULHU);
+
+    // 内部乘法指令信号（用于wd_sel和rf_we判断）
+    logic is_mul_internal;
+    assign is_mul_internal = (opcode == `OPCODE_RTYPE) && (funct7 == `FUNCT7_MUL) && is_mul_funct3;
 
     // 跳转类型判断
     // assign jump_type = (opcode == `OPCODE_JAL) ?
@@ -100,9 +108,7 @@ module Decoder (
     // verilog_format:off
     always_comb begin : wb_source_selection
         // 首先检测是否为乘法指令
-        if (opcode == `OPCODE_RTYPE && funct7 == `FUNCT7_MUL && 
-            (funct3 == `FUNCT3_ADD_SUB_MUL || funct3 == `FUNCT3_SLL_MULH || 
-             funct3 == `FUNCT3_SLT_MULHSU || funct3 == `FUNCT3_SLTU_MULHU)) begin
+        if (is_mul_internal) begin
             wd_sel = `WD_SEL_FROM_MUL;
         end else begin
             unique case (opcode)
@@ -128,9 +134,7 @@ module Decoder (
     // verilog_format:off
     always_comb begin : rf_write_enable
         // 首先检测是否为乘法指令
-        if (opcode == `OPCODE_RTYPE && funct7 == `FUNCT7_MUL && 
-            (funct3 == `FUNCT3_ADD_SUB_MUL || funct3 == `FUNCT3_SLL_MULH || 
-             funct3 == `FUNCT3_SLT_MULHSU || funct3 == `FUNCT3_SLTU_MULHU)) begin
+        if (is_mul_internal) begin
             rf_we = 1'b0;  // 乘法指令的写回由乘法器处理
         end else begin
             unique case (opcode)
@@ -152,7 +156,7 @@ module Decoder (
     // verilog_format:on
 
     // 数据存储器写使能
-    assign dram_we = (opcode == `OPCODE_STYPE) ? 1'b1 : 1'b0;
+    assign dram_we = (opcode == `OPCODE_STYPE);
 
     // ALU 操作码生成
     // verilog_format:off
@@ -269,36 +273,15 @@ module Decoder (
     end
 
     // 乘法指令检测
+    // 使用预计算的is_mul_internal信号简化逻辑
     // verilog_format:off
     always_comb begin : mul_detection
-        // 默认值
-        is_mul_instr = 1'b0;
-        mul_op       = 2'b00;
-        
-        // 乘法指令: opcode = 0110011 (R-type), funct7 = 0000001
-        if (opcode == `OPCODE_RTYPE && funct7 == `FUNCT7_MUL) begin
-            case (funct3)
-                `FUNCT3_ADD_SUB_MUL: begin   // MUL
-                    is_mul_instr = 1'b1;
-                    mul_op       = 2'b00;
-                end
-                `FUNCT3_SLL_MULH: begin      // MULH
-                    is_mul_instr = 1'b1;
-                    mul_op       = 2'b01;
-                end
-                `FUNCT3_SLT_MULHSU: begin    // MULHSU
-                    is_mul_instr = 1'b1;
-                    mul_op       = 2'b10;
-                end
-                `FUNCT3_SLTU_MULHU: begin    // MULHU
-                    is_mul_instr = 1'b1;
-                    mul_op       = 2'b11;
-                end
-                default: begin
-                    is_mul_instr = 1'b0;
-                    mul_op       = 2'b00;
-                end
-            endcase
+        is_mul_instr = is_mul_internal;
+        // mul_op由funct3的低两位决定（仅在乘法指令时有意义）
+        if (is_mul_internal) begin
+            mul_op = funct3[1:0];  // MUL=00, MULH=01, MULHSU=10, MULHU=11
+        end else begin
+            mul_op = 2'b00;  // 非乘法指令时默认值
         end
     end
     // verilog_format:on
