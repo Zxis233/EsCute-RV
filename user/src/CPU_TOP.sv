@@ -360,12 +360,12 @@ module CPU_TOP (
     logic [31:0] DRAM_output_data;  // LSU从DRAM得到的数据
     // DRAM模块
     DRAM #(
+        // [HACK] Xilinx 可综合的位写入BRAM最大为12位地址宽度
         .ADDR_WIDTH(15)
     ) u_DRAM (
         .clk(clk),
         .a  (alu_result_MEM[17:2]),  // 字节地址转换为字地址 (除以4)
         .spo(DRAM_output_data),
-        // .we ({4{dram_we_MEM}}),
         .we (dram_we_MEM_strbe),
         .din(DRAM_input_data)
     );
@@ -412,16 +412,6 @@ module CPU_TOP (
     // WB级LoadStoreUnit - 专门处理Load操作
     // 使用WB级的sl_type和地址来正确处理DRAM读取的数据
     logic [31:0] load_data_WB;
-    // LoadStoreUnit u_LoadStoreUnit_WB(
-    //     .sl_type       (sl_type_WB),
-    //     .addr          (alu_result_WB),
-    //     .load_data_i   (DRAM_output_data),  // DRAM的spo在WB级稳定可用
-    //     .load_data_o   (load_data_WB),
-    //     .store_data_i  (32'b0),             // WB级不使用store处理
-    //     .store_data_o  (),
-    //     .dram_we       (1'b0),              // WB级不写DRAM
-    //     .wstrb         ()
-    // );
 
     LoadUnit u_LoadUnit_WB (
         .sl_type    (sl_type_WB),
