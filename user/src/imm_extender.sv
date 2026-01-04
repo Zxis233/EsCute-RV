@@ -26,6 +26,9 @@ module imm_extender (
             `OPCODE_AUIPC, `OPCODE_LUI: begin  // U-type
                 imm_out = {instr[31:12], 12'b0};
             end
+            `OPCODE_ZICSR: begin  // CSR-type (zimm is 5-bit unsigned immediate in rs1 field)
+                imm_out = {27'b0, instr[19:15]};
+            end
 
             default: begin
                 imm_out = 32'b0;

@@ -3,14 +3,14 @@
 # ========================================
 
 # 扩展名
-EXT		  	 := hex
+FOLDER		  	 := hex
 
 # 目录定义
 SIM_DIR      := $(shell pwd)
 RUN_DIR      := ${SIM_DIR}/prj/run
 SRC_DIR      := ${SIM_DIR}/user/src
 SIM_TB_DIR   := ${SIM_DIR}/user/data/isa
-TEST_DIR     := ${SIM_DIR}/user/data/isa/${EXT}
+TEST_DIR     := ${SIM_DIR}/user/data/isa/${FOLDER}
 
 # 顶层测试文件
 TB_TOP       := ${SIM_TB_DIR}/test_tb.sv
@@ -19,7 +19,7 @@ TB_TOP       := ${SIM_TB_DIR}/test_tb.sv
 TESTCASE     := rv32ui-p-add
 
 # 仿真选项
-DUMPWAVE     := 0
+DUMPWAVE     := 1
 PRINT_INFO   := 0
 
 # 仿真工具配置
@@ -53,8 +53,8 @@ endif
 # 波形文件
 WAV_FILE     := ${RUN_DIR}/wave.vcd
 
-# 所有测试用例 (从 ${EXT} 目录获取)
-ALL_TESTS    := $(basename $(notdir $(wildcard ${TEST_DIR}/*.${EXT})))
+# 所有测试用例 (从 hex 目录获取)
+ALL_TESTS    := $(basename $(notdir $(wildcard ${TEST_DIR}/*.hex)))
 
 # ========================================
 # 主要目标
@@ -113,17 +113,17 @@ compile: ${RUN_DIR}
 run:
 	@echo "========================================"
 	@echo "运行测试: ${TESTCASE}"
-	@echo "测试文件: ${TEST_DIR}/${TESTCASE}.${EXT}"
+	@echo "测试文件: ${TEST_DIR}/${TESTCASE}.hex"
 	@echo "========================================"
-	@if [ ! -f "${TEST_DIR}/${TESTCASE}.${EXT}" ]; then \
-		echo "错误: 测试文件不存在: ${TEST_DIR}/${TESTCASE}.${EXT}"; \
+	@if [ ! -f "${TEST_DIR}/${TESTCASE}.hex" ]; then \
+		echo "错误: 测试文件不存在: ${TEST_DIR}/${TESTCASE}.hex"; \
 		echo "请使用 'make list_tests' 查看可用测试"; \
 		exit 1; \
 	fi
 	@${SIM_TOOL} ${SIM_OPTIONS} ${TB_FILES} ${RTL_FILES} > /dev/null 2>&1
 	@cd ${RUN_DIR} && \
 		${SIM_EXEC} \
-		+TESTCASE=${TEST_DIR}/${TESTCASE}.${EXT} \
+		+TESTCASE=${TEST_DIR}/${TESTCASE}.hex \
 		+DUMPWAVE=${DUMPWAVE} \
 		+PRINT_INFO=${PRINT_INFO} \
 # 		2>&1 | tee ${TESTCASE}.log
@@ -152,7 +152,7 @@ regress_prepare: compile
 	@echo "准备回归测试..."
 	@make compile
 	@rm -f ${RUN_DIR}/*.log
-	@rm -f ${RUN_DIR}/regress_summary.txt
+	@rm -f ${RUN_DIR}/regress_summary_${FOLDER}.txt
 
 regress_run:
 	@echo "========================================"
@@ -160,10 +160,10 @@ regress_run:
 	@echo "========================================"
 	@for test in $(ALL_TESTS); do \
 		echo ">>> 测试: $$test"; \
-		make run TESTCASE=$$test DUMPWAVE=0 PRINT_INFO=0 2>&1 | grep -E "\[PASS\]|\[FAIL\]|\[EROR\]" | tee -a ${RUN_DIR}/regress_summary.txt; \
+		make run TESTCASE=$$test DUMPWAVE=0 PRINT_INFO=0 2>&1 | grep -E "\[PASS\]|\[FAIL\]|\[EROR\]" | tee -a ${RUN_DIR}/regress_summary_${FOLDER}.txt; \
 	done
 	@echo "========================================"
-	@echo "测试完成! 汇总文件: ${RUN_DIR}/regress_summary.txt"
+	@echo "测试完成! 汇总文件: ${RUN_DIR}/regress_summary_${FOLDER}.txt"
 	@echo "========================================"
 
 regress_collect:
@@ -172,13 +172,13 @@ regress_collect:
 	@echo "               回归测试汇总"
 	@echo "==========================================="
 	@echo "     Time | STATUS |  CASE NUM  | PATH"
-	@if [ -f ${RUN_DIR}/regress_summary.txt ]; then \
-		cat ${RUN_DIR}/regress_summary.txt; \
+	@if [ -f ${RUN_DIR}/regress_summary_${FOLDER}.txt ]; then \
+		cat ${RUN_DIR}/regress_summary_${FOLDER}.txt; \
 		echo "==========================================="; \
 		echo "总计: $(words $(ALL_TESTS)) 个测试"; \
-		PASS_COUNT=$$(grep -c "\[PASS\]" ${RUN_DIR}/regress_summary.txt || true); \
-		FAIL_COUNT=$$(grep -c "\[FAIL\]" ${RUN_DIR}/regress_summary.txt || true); \
-		EROR_COUNT=$$(grep -c "EROR" ${RUN_DIR}/regress_summary.txt || true); \
+		PASS_COUNT=$$(grep -c "\[PASS\]" ${RUN_DIR}/regress_summary_${FOLDER}.txt || true); \
+		FAIL_COUNT=$$(grep -c "\[FAIL\]" ${RUN_DIR}/regress_summary_${FOLDER}.txt || true); \
+		EROR_COUNT=$$(grep -c "EROR" ${RUN_DIR}/regress_summary_${FOLDER}.txt || true); \
 		echo "通过: $$PASS_COUNT"; \
 		echo "失败: $$FAIL_COUNT"; \
 		echo "错误: $$EROR_COUNT"; \

@@ -1,6 +1,8 @@
 module PR_MEM_WB (
     input  logic        clk,
     input  logic        rst_n,
+    // 流水线控制信号
+    input  logic        flush,              // 异常时冲刷WB级
     // MEM级输入
     input  logic [31:0] pc_mem_i,
     // MEM级输出 给WB级输入
@@ -17,12 +19,9 @@ module PR_MEM_WB (
     // 写回数据
     input  logic [31:0] wd_mem_i,
     output logic [31:0] wd_wb_o,
-    // 同步读DRAM时的额外数据
-    input  logic [31:0] dram_data_mem_i,
-    output logic [31:0] dram_data_wb_o,
     // 写回数据来源 用于在WB级选择
-    input  logic [ 1:0] wd_sel_mem_i,
-    output logic [ 1:0] wd_sel_wb_o,
+    input  logic [ 2:0] wd_sel_mem_i,
+    output logic [ 2:0] wd_sel_wb_o,
     // 存取类型 用于WB级LoadStoreUnit处理DRAM读取数据
     input  logic [ 3:0] sl_type_mem_i,
     output logic [ 3:0] sl_type_wb_o,
@@ -38,8 +37,17 @@ module PR_MEM_WB (
             rf_we_wb_o       <= 1'b0;
             wr_wb_o          <= 5'b0;
             wd_wb_o          <= 32'b0;
-            dram_data_wb_o   <= 32'b0;
-            wd_sel_wb_o      <= 2'b0;
+            wd_sel_wb_o      <= 3'b0;
+            sl_type_wb_o     <= 4'b0;
+            alu_result_wb_o  <= 32'b0;
+        end else if (flush) begin
+            // 异常发生时，清除WB级的写使能信号，防止指令提交
+            pc_wb_o          <= 32'b0;
+            instr_valid_wb_o <= 1'b0;
+            rf_we_wb_o       <= 1'b0;
+            wr_wb_o          <= 5'b0;
+            wd_wb_o          <= 32'b0;
+            wd_sel_wb_o      <= 3'b0;
             sl_type_wb_o     <= 4'b0;
             alu_result_wb_o  <= 32'b0;
         end else begin
@@ -48,7 +56,6 @@ module PR_MEM_WB (
             rf_we_wb_o       <= rf_we_mem_i;
             wr_wb_o          <= wr_mem_i;
             wd_wb_o          <= wd_mem_i;
-            dram_data_wb_o   <= dram_data_mem_i;
             wd_sel_wb_o      <= wd_sel_mem_i;
             sl_type_wb_o     <= sl_type_mem_i;
             alu_result_wb_o  <= alu_result_mem_i;

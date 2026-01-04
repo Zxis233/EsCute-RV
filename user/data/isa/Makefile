@@ -6,10 +6,8 @@ XLEN ?= 32
 
 src_dir := .
 
-ifeq ($(XLEN),64)
-include $(src_dir)/rv64ui/Makefrag
-endif
 include $(src_dir)/rv32ui/Makefrag
+include $(src_dir)/rv32mi/Makefrag
 
 default: all
 
@@ -69,10 +67,8 @@ endif
 
 endef
 
-$(eval $(call compile_template,rv32ui,-march=rv32i_zicsr -mabi=ilp32))
-ifeq ($(XLEN),64)
-$(eval $(call compile_template,rv64ui,-march=rv64g -mabi=lp64))
-endif
+$(eval $(call compile_template,rv32ui,-march=rv32i_zicsr_zmmul -mabi=ilp32))
+$(eval $(call compile_template,rv32mi,-march=rv32i_zicsr_zmmul -mabi=ilp32))
 
 tests_dump = $(addsuffix .dump, $(tests))
 tests_hex = $(addsuffix .hex, $(tests))

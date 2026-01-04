@@ -1,7 +1,7 @@
 // DRAM 行为模型 - 用于仿真
 // 替代 Xilinx IP 核
 module DRAM #(
-    parameter int unsigned ADDR_WIDTH = 16
+    parameter int unsigned ADDR_WIDTH = 12
 ) (
     input  logic                  clk,  // 时钟
     input  logic [ADDR_WIDTH-1:0] a,    // 地址输入
@@ -39,21 +39,12 @@ module DRAM #(
         if (we != 4'b0000) begin
             // 按位写使能
             // 这里禁止使用case-true 会只匹配第一个结果
-            // [HACK] 将合并输入数据放到LoadStoreUnit模块中处理
-            if (we[0]) ram_data[a][7:0] <= din[7:0];
-            if (we[1]) ram_data[a][15:8] <= din[15:8];
+            if (we[0]) ram_data[a][ 7: 0] <= din[ 7: 0];
+            if (we[1]) ram_data[a][15: 8] <= din[15: 8];
             if (we[2]) ram_data[a][23:16] <= din[23:16];
             if (we[3]) ram_data[a][31:24] <= din[31:24];
         end
         spo <= ram_data[a];  // 同步读
     end
 
-    // `ifdef DEBUG
-    //     logic [31:0] ram_data_debug_24, ram_data_debug_28, ram_data_debug_32;
-    //     always_comb begin
-    //         ram_data_debug_24 = ram_data[16'd24][31:0];
-    //         ram_data_debug_28 = ram_data[16'd28][31:0];
-    //         ram_data_debug_32 = ram_data[16'd32][31:0];
-    //     end
-    // `endif
 endmodule

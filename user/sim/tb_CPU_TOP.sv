@@ -116,7 +116,7 @@ module tb_CPU_TOP;
     // 监控关键信号
     initial begin
         $display("========================================");
-        $display("Time\t| PC\t| Instruction\t| Stage");
+        $display("Time    |     PC    |Instruction| Stage");
         $display("========================================");
 
         forever begin
@@ -124,29 +124,35 @@ module tb_CPU_TOP;
             if (rst_n) begin
                 // IF 级
                 if (u_CPU_TOP.valid_IF)
-                    $display("%0t\t| %h\t| %h\t| IF", $time, u_CPU_TOP.pc_IF, u_CPU_TOP.instr_IF);
+                    $display("%0t\t| %h\t|  %h\t| IF", $time, u_CPU_TOP.pc_IF, u_CPU_TOP.instr_IF);
 
                 // ID 级
                 if (u_CPU_TOP.valid_ID && u_CPU_TOP.instr_ID != 32'h00000013)  // 跳过 NOP
-                    $display("%0t\t| %h\t| %h\t| ID", $time, u_CPU_TOP.pc_ID, u_CPU_TOP.instr_ID);
+                    $display("%0t\t| %h\t|  %h\t| ID", $time, u_CPU_TOP.pc_ID, u_CPU_TOP.instr_ID);
 
                 // EX 级
-                if (u_CPU_TOP.valid_EX)
-                    $display(
-                        "%0t\t| %h\t| --------\t| EX \t (ALU=0x%h)",
-                        $time,
-                        u_CPU_TOP.pc_EX,
-                        u_CPU_TOP.alu_result_EX
-                    );
+                if (u_CPU_TOP.valid_EX) begin
+                    if (!u_CPU_TOP.is_mul_instr_EX)
+                        $display(
+                            "%0t\t| %h\t|  %h\t| EX", $time, u_CPU_TOP.pc_EX, u_CPU_TOP.instr_EX
+                        );
+                    else if (u_CPU_TOP.mul_valid_i)
+                        $display(
+                            "%0t\t| %h\t|     %2b    |[MUL V]",
+                            $time,
+                            u_CPU_TOP.pc_EX,
+                            u_CPU_TOP.mul_op_EX
+                        );
+                end
                 // MEM 级
                 if (u_CPU_TOP.dram_we_MEM_strbe != 4'b0000) begin
-                    $display("%0t\t| 0x%4h <| 0x%h\t|[MEM W] (we=%b)", $time,
+                    $display("%0t\t| 0x%4h <|  0x%h |[MEM W] (we=%b)", $time,
                              u_CPU_TOP.alu_result_MEM[17:2], u_CPU_TOP.DRAM_input_data,
                              u_CPU_TOP.dram_we_MEM_strbe);
                 end else begin
-                    if (u_CPU_TOP.wd_sel_WB)
+                    if (u_CPU_TOP.wd_sel_WB == 1'b1)
                         $display(
-                            "%0t\t| 0x%4h |> 0x%h\t|[MEM R]",
+                            "%0t\t| 0x%4h  |> 0x%h |[MEM R]",
                             $time,
                             u_CPU_TOP.alu_result_MEM[17:2],
                             u_CPU_TOP.DRAM_output_data
@@ -161,8 +167,16 @@ module tb_CPU_TOP;
         forever begin
             @(posedge clk);
             if (rst_n && u_CPU_TOP.rf_we_WB && u_CPU_TOP.wR_WB != 0) begin
-                $display("%0t\t|  x%-2d   <= 0x%h \t|[WB]", $time, u_CPU_TOP.wR_WB,
-                         u_CPU_TOP.rf_wd_WB);
+                $display("%0t\t|  x%-2d    <= 0x%h |[WB]", $time, u_CPU_TOP.wR_WB,
+                         u_CPU_TOP.rf_wd_WB_from_ALU_or_DRAM);
+                if (!u_CPU_TOP.mul_rf_we_o && u_CPU_TOP.u_MUL.s4_valid) begin
+                    $display("%0t\t|  x%-2d  |==< 0x%h |[MUL C]", $time, u_CPU_TOP.mul_rd_o,
+                             u_CPU_TOP.mul_result);
+                end
+            end
+            if (rst_n && u_CPU_TOP.mul_rf_we_o && u_CPU_TOP.mul_rd_o != 0) begin
+                $display("%0t\t|  x%-2d  <==< 0x%h |[MUL W]", $time, u_CPU_TOP.mul_rd_o,
+                         u_CPU_TOP.mul_result);
             end
         end
     end

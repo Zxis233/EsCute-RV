@@ -58,11 +58,13 @@ module IROM #(
         end
         else if (1) begin
             rom_prefix =
-            "user/data/isa/hex/"
-            // "user/data/hex/"
+            // "user/data/isa/hex/"
+            "user/data/hex/"
             ;
             rom_file =
-            "rv32ui-p-lw"
+            // "rv32ui-p-lw"
+            "full_test_mul"
+            // "mul"
             // "addi"
             ;
             $readmemh({rom_prefix,rom_file,".hex"}, rom_data, 0, 16383);

@@ -86,7 +86,7 @@ module test_tb;
         if ($value$plusargs("DUMPWAVE=%d", dumpwave)) begin
             if (dumpwave == 1) begin
 `ifdef VCD_FILEPATH
-                $dumpfile(`VCD_FILEPATH);
+                $dumpfile({"../../", `VCD_FILEPATH});
 `else
                 $dumpfile("wave.vcd");
 `endif
@@ -122,7 +122,7 @@ module test_tb;
                     $finish;
                 end
                 32'h1919810: begin
-                    $display("%10t| [FAIL] | No.%2d\t| %20s", $time, x10, testcase);
+                    $display("%10t| [FAIL] |  No.%2d\t| %20s", $time, x10, testcase);
                     $finish;
                 end
                 default: begin
@@ -133,8 +133,8 @@ module test_tb;
 
     // 超时保护
     initial begin
-        #100000;  // 50us 超时
-        $display("%10t| [EROR] |TimeOut!| %20s", $time, testcase);
+        #1000000;  // 50us 超时
+        $display("%10t| [EROR] |  TimeOut!  | %20s", $time, testcase);
         $finish;
     end
 
