@@ -21,3 +21,5 @@ test.json
 *.pdf
 *.out
 coremark/docs
+*.elf
+*.hex

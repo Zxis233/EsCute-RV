@@ -64,8 +64,13 @@ barebones_clock()
    does not occur. If there are issues with the return value overflowing,
    increase this value.
         */
-/* CPU clock frequency: 100MHz (10ns per cycle in simulation) */
+/* CPU clock frequency - ADJUST THIS VALUE FOR YOUR TARGET PLATFORM
+ * Default: 100MHz (10ns per cycle in simulation)
+ * For real hardware, set this to your actual CPU frequency in Hz
+ */
+#ifndef CLOCKS_PER_SEC
 #define CLOCKS_PER_SEC             100000000
+#endif
 #define GETMYTIME(_t)              (*_t = barebones_clock())
 #define MYTIMEDIFF(fin, ini)       ((fin) - (ini))
 #define TIMER_RES_DIVIDER          1

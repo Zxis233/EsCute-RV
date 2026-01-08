@@ -136,7 +136,9 @@ module CSR (
         end
     end
 
-    // mcycle counter - increments every clock cycle
+    // mcycle counter - increments every clock cycle unconditionally
+    // Note: This is a simplified implementation without mcountinhibit support.
+    // The counter always runs unless explicitly written via CSR instructions.
     // mcycle can be written via CSR instructions (MCYCLE/MCYCLEH)
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
