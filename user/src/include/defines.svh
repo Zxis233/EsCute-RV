@@ -230,6 +230,8 @@
     `define CSR_MISA           12'h301
     `define CSR_MSCRATCH       12'h340
     `define CSR_MTVAL          12'h343
+    `define CSR_MCYCLE         12'hB00
+    `define CSR_MCYCLEH        12'hB80
 
 // ================== F3-CSR 定义 ==================
     `define FUNCT3_CSRRC        3'h3

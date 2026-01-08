@@ -32,6 +32,14 @@ static void print_hex32(uint32_t x)
     putch('\n');
 }
 
+/* Read mcycle CSR (cycle counter) - returns lower 32 bits */
+static inline uint32_t read_mcycle(void)
+{
+    uint32_t cycles;
+    __asm__ volatile ("csrr %0, mcycle" : "=r"(cycles));
+    return cycles;
+}
+
 
 int print_test(void)
 {
@@ -63,6 +71,33 @@ int print_test(void)
     print_hex32(prod);
     puts("(a<<5)^b =");
     print_hex32(mix);
+
+    puts("\n=== MCYCLE CSR TEST ===\n");
+    uint32_t cycle1 = read_mcycle();
+    puts("mcycle (start) = ");
+    print_hex32(cycle1);
+
+    // Do some work
+    volatile uint32_t dummy = 0;
+    for (int i = 0; i < 100; i++) {
+        dummy += i;
+    }
+
+    uint32_t cycle2 = read_mcycle();
+    puts("mcycle (after loop) = ");
+    print_hex32(cycle2);
+
+    uint32_t cycles_elapsed = cycle2 - cycle1;
+    puts("cycles elapsed = ");
+    print_hex32(cycles_elapsed);
+
+    if (cycles_elapsed > 0) {
+        puts("MCYCLE CSR TEST PASSED!\n");
+    } else {
+        puts("MCYCLE CSR TEST FAILED!\n");
+        exit_sim(2);  // FAIL
+    }
+
     exit_sim(1);  // ✅ 打印完通知结束
 }
 

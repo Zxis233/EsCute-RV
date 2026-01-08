@@ -35,6 +35,15 @@ volatile ee_s32 seed3_volatile = 0x8;
 #endif
 volatile ee_s32 seed4_volatile = ITERATIONS;
 volatile ee_s32 seed5_volatile = 0;
+
+/* Read mcycle CSR (cycle counter) - returns lower 32 bits */
+static inline ee_u32 read_mcycle(void)
+{
+    ee_u32 cycles;
+    __asm__ volatile ("csrr %0, mcycle" : "=r"(cycles));
+    return cycles;
+}
+
 /* Porting : Timing functions
         How to capture time and convert to seconds must be ported to whatever is
    supported by the platform. e.g. Read value from on board RTC, read value from
@@ -44,9 +53,9 @@ volatile ee_s32 seed5_volatile = 0;
 CORETIMETYPE
 barebones_clock()
 {
-#error \
-    "You must implement a method to measure time in barebones_clock()! This function should return current time.\n"
+    return read_mcycle();
 }
+
 /* Define : TIMER_RES_DIVIDER
         Divider to trade off timer resolution and total time that can be
    measured.
@@ -55,6 +64,8 @@ barebones_clock()
    does not occur. If there are issues with the return value overflowing,
    increase this value.
         */
+/* CPU clock frequency: 100MHz (10ns per cycle in simulation) */
+#define CLOCKS_PER_SEC             100000000
 #define GETMYTIME(_t)              (*_t = barebones_clock())
 #define MYTIMEDIFF(fin, ini)       ((fin) - (ini))
 #define TIMER_RES_DIVIDER          1
@@ -129,8 +140,8 @@ ee_u32 default_num_contexts = 1;
 void
 portable_init(core_portable *p, int *argc, char *argv[])
 {
-#error \
-    "Call board initialization routines in portable init (if needed), in particular initialize UART!\n"
+    /* No special initialization needed for this bare-metal platform */
+    /* UART is already set up via tohost mechanism in testbench */
 
     (void)argc; // prevent unused warning
     (void)argv; // prevent unused warning
