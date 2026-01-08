@@ -1,0 +1,51 @@
+
+main.elf：     文件格式 elf32-littleriscv
+
+
+Disassembly of section .text.init:
+
+00000000 <_start>:
+   0:	00001117          	auipc	sp,0x1
+   4:	00010113          	mv	sp,sp
+   8:	040000ef          	jal	48 <main>
+   c:	0000006f          	j	c <_start+0xc>
+
+Disassembly of section .text:
+
+00000010 <putch>:
+  10:	fe010113          	addi	sp,sp,-32 # fe0 <_end+0xf4c>
+  14:	00112e23          	sw	ra,28(sp)
+  18:	00812c23          	sw	s0,24(sp)
+  1c:	02010413          	addi	s0,sp,32
+  20:	00050793          	mv	a5,a0
+  24:	fef407a3          	sb	a5,-17(s0)
+  28:	0d0007b7          	lui	a5,0xd000
+  2c:	fef44703          	lbu	a4,-17(s0)
+  30:	00e7a023          	sw	a4,0(a5) # d000000 <_stack_top+0xcfff000>
+  34:	00000013          	nop
+  38:	01c12083          	lw	ra,28(sp)
+  3c:	01812403          	lw	s0,24(sp)
+  40:	02010113          	addi	sp,sp,32
+  44:	00008067          	ret
+
+00000048 <main>:
+  48:	fe010113          	addi	sp,sp,-32
+  4c:	00112e23          	sw	ra,28(sp)
+  50:	00812c23          	sw	s0,24(sp)
+  54:	02010413          	addi	s0,sp,32
+  58:	08c00793          	li	a5,140
+  5c:	fef42623          	sw	a5,-20(s0)
+  60:	01c0006f          	j	7c <main+0x34>
+  64:	fec42783          	lw	a5,-20(s0)
+  68:	00178713          	addi	a4,a5,1
+  6c:	fee42623          	sw	a4,-20(s0)
+  70:	0007c783          	lbu	a5,0(a5)
+  74:	00078513          	mv	a0,a5
+  78:	f99ff0ef          	jal	10 <putch>
+  7c:	fec42783          	lw	a5,-20(s0)
+  80:	0007c783          	lbu	a5,0(a5)
+  84:	fe0790e3          	bnez	a5,64 <main+0x1c>
+  88:	0000006f          	j	88 <main+0x40>
+  8c:	4548                	.insn	2, 0x4548
+  8e:	4c4c                	.insn	2, 0x4c4c
+  90:	000a214f          	.insn	4, 0x000a214f

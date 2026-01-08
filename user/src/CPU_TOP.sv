@@ -64,7 +64,7 @@ module CPU_TOP (
 
     logic flush_IF_ID, flush_ID_EX;
     logic keep_PC, stall_IF_ID;
-    
+
     // CSR相关信号
     logic        is_csr_instr_ID, is_csr_instr_EX;
     logic [ 2:0] csr_op_ID, csr_op_EX;
@@ -73,10 +73,10 @@ module CPU_TOP (
     logic        is_mret_ID, is_mret_EX;
     logic [31:0] csr_rdata_EX;
     logic [31:0] csr_wdata_EX;
-    
+
     // 非法指令检测信号
     logic        is_illegal_instr_ID, is_illegal_instr_EX;
-    
+
     // Exception/Trap相关信号
     logic        exception_valid;
     logic [31:0] exception_pc;
@@ -85,7 +85,7 @@ module CPU_TOP (
     logic        trap_to_mmode;
     logic [31:0] trap_target;
     logic [31:0] mret_target;
-    
+
     // 提前检测的非法指令异常 (在ID级检测)
     // 这样可以在非法指令进入EX之前就触发异常，防止其前一条指令提交
     logic        illegal_instr_exception_ID;
@@ -199,7 +199,7 @@ module CPU_TOP (
         // 非法指令检测
         .is_illegal_instr(is_illegal_instr_ID)
     );
-    
+
     // 早期非法指令异常检测 (ID级)
     // 当检测到非法指令时，在ID级就触发异常
     // 这样可以防止非法指令前面的指令(在EX级)提交
@@ -364,10 +364,10 @@ module CPU_TOP (
     //
     // - Instruction address misaligned: mcause = 0, mtval = misaligned address
     // - Illegal instruction: mcause = 2, mtval = instruction encoding
-    // - Load address misaligned: mcause = 4, mtval = misaligned address  
+    // - Load address misaligned: mcause = 4, mtval = misaligned address
     // - Store address misaligned: mcause = 6, mtval = misaligned address
     // - ECALL: mcause = 11, mtval = 0
-    
+
     // Misaligned address detection (EX stage)
     // For JALR: target must be 4-byte aligned (bit 1 must be 0 for RV32I without C extension)
     // JALR target = (rs1 + imm) & ~1, so we check bit 1 of alu_result (before masking)
@@ -375,7 +375,7 @@ module CPU_TOP (
     logic [31:0] jalr_target_EX;
     assign jalr_target_EX = {alu_result_EX[31:1], 1'b0};  // JALR target after masking bit 0
     assign instr_misaligned_EX = (jump_type_EX == `JUMP_JALR) && (alu_result_EX[1] != 1'b0);
-    
+
     // Load/Store address misaligned detection (EX stage)
     // LW/SW: must be 4-byte aligned (bits [1:0] == 00)
     // LH/LHU/SH: must be 2-byte aligned (bit [0] == 0)
@@ -387,7 +387,7 @@ module CPU_TOP (
         store_misaligned_EX = 1'b0;
         case (sl_type_EX)
             `MEM_LW:  load_misaligned_EX  = (alu_result_EX[1:0] != 2'b00);
-            `MEM_LH, 
+            `MEM_LH,
             `MEM_LHU: load_misaligned_EX  = (alu_result_EX[0] != 1'b0);
             `MEM_SW:  store_misaligned_EX = (alu_result_EX[1:0] != 2'b00);
             `MEM_SH:  store_misaligned_EX = (alu_result_EX[0] != 1'b0);
@@ -397,18 +397,18 @@ module CPU_TOP (
             end
         endcase
     end
-    
+
     // EX级异常 (不包括非法指令，非法指令在ID级处理)
     logic exception_valid_EX;
-    assign exception_valid_EX = (instr_misaligned_EX || load_misaligned_EX || 
+    assign exception_valid_EX = (instr_misaligned_EX || load_misaligned_EX ||
                                  store_misaligned_EX || is_ecall_EX) && valid_EX;
-    
+
     // 总异常信号：EX级异常 OR ID级非法指令异常
     // 优先级：EX级异常 > ID级异常
     // 原因：EX级的指令在程序顺序上早于ID级的指令
     // 如果EX级触发异常，ID级的指令应该被丢弃
     assign exception_valid = exception_valid_EX || illegal_instr_exception_ID;
-    
+
     // 异常PC和原因/值的选择
     always_comb begin
         if (instr_misaligned_EX && valid_EX) begin
@@ -467,7 +467,7 @@ module CPU_TOP (
     // take_branch_NextPC和branch_target_NextPC需要考虑异常和MRET
     logic        take_branch_normal;
     logic [31:0] branch_target_normal;
-    
+
     NextPC_Generator u_NextPC_Generator (
         .is_branch_instr     (is_branch_instr_EX),
         .branch_type         (branch_type_EX),
@@ -480,7 +480,7 @@ module CPU_TOP (
         .take_branch         (take_branch_normal),
         .branch_target_NextPC(branch_target_normal)
     );
-    
+
     // 优先级: ECALL > MRET > Normal branch/jump
     always_comb begin
         if (exception_valid) begin

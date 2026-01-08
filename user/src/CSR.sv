@@ -54,10 +54,10 @@ module CSR (
     // end
 
     // mstatus bit positions
-    localparam MIE_BIT = 3;  // Machine Interrupt Enable
-    localparam MPIE_BIT = 7;  // Machine Previous Interrupt Enable
-    localparam MPP_LOW = 11;  // Machine Previous Privilege (low bit)
-    localparam MPP_HIGH = 12;  // Machine Previous Privilege (high bit)
+    localparam integer MIE_BIT = 3;  // Machine Interrupt Enable
+    localparam integer MPIE_BIT = 7;  // Machine Previous Interrupt Enable
+    localparam integer MPP_LOW = 11;  // Machine Previous Privilege (low bit)
+    localparam integer MPP_HIGH = 12;  // Machine Previous Privilege (high bit)
 
     // CSR read logic
     always_comb begin
