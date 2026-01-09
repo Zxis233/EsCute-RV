@@ -31,6 +31,6 @@ SECTIONS
     *(.tohost)
   } */
 
-  _stack_top = 0x00010000;
+  _stack_top = 0x0000FF00;
   _end = .;
 }

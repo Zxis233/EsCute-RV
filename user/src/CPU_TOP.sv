@@ -400,14 +400,17 @@ module CPU_TOP (
 
     // EX级异常 (不包括非法指令，非法指令在ID级处理)
     logic exception_valid_EX;
+    logic take_branch_normal;
     assign exception_valid_EX = (instr_misaligned_EX || load_misaligned_EX ||
                                  store_misaligned_EX || is_ecall_EX) && valid_EX;
 
     // 总异常信号：EX级异常 OR ID级非法指令异常
     // 优先级：EX级异常 > ID级异常
-    // 原因：EX级的指令在程序顺序上早于ID级的指令
-    // 如果EX级触发异常，ID级的指令应该被丢弃
-    assign exception_valid = exception_valid_EX || illegal_instr_exception_ID;
+    // 注意：当EX级有有效的跳转/分支时，ID级的指令将被flush，
+    // 所以ID级的非法指令异常不应该生效
+    // 这防止了跳转到数据区域时，数据被误认为非法指令而触发异常
+    assign exception_valid = exception_valid_EX ||
+                             (illegal_instr_exception_ID && !take_branch_normal);
 
     // 异常PC和原因/值的选择
     always_comb begin
@@ -465,7 +468,6 @@ module CPU_TOP (
 
     // NextPC 计算 - 现在需要考虑ECALL和MRET
     // take_branch_NextPC和branch_target_NextPC需要考虑异常和MRET
-    logic        take_branch_normal;
     logic [31:0] branch_target_normal;
 
     NextPC_Generator u_NextPC_Generator (

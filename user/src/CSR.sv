@@ -95,7 +95,7 @@ module CSR (
         if (!rst_n) begin
             // Reset values
             mstatus  <= 32'h0000_1800;  // MPP = 11 (Machine mode)
-            mtvec    <= 32'h0000_0000;  // Default trap handler at 0
+            mtvec    <= 32'h0114_5140;  // Default trap handler at 0
             mepc     <= 32'h0000_0000;
             mcause   <= 32'h0000_0000;
             mscratch <= 32'h0000_0000;

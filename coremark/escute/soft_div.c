@@ -16,10 +16,16 @@ unsigned int __udivsi3(unsigned int dividend, unsigned int divisor)
     // 找到最高位
     for (bit = 31; bit >= 0; bit--)
     {
-        if (remainder >= (divisor << bit))
+        // 防止左移溢出：只有当 divisor <= (0xFFFFFFFF >> bit) 时才进行移位比较
+        // 否则 divisor << bit 会溢出并产生错误结果
+        if (divisor <= (0xFFFFFFFFU >> bit))
         {
-            remainder -= (divisor << bit);
-            quotient  |= (1U << bit);
+            unsigned int shifted = divisor << bit;
+            if (remainder >= shifted)
+            {
+                remainder -= shifted;
+                quotient  |= (1U << bit);
+            }
         }
     }
 
@@ -37,9 +43,14 @@ unsigned int __umodsi3(unsigned int dividend, unsigned int divisor)
 
     for (bit = 31; bit >= 0; bit--)
     {
-        if (remainder >= (divisor << bit))
+        // 防止左移溢出：只有当 divisor <= (0xFFFFFFFF >> bit) 时才进行移位比较
+        if (divisor <= (0xFFFFFFFFU >> bit))
         {
-            remainder -= (divisor << bit);
+            unsigned int shifted = divisor << bit;
+            if (remainder >= shifted)
+            {
+                remainder -= shifted;
+            }
         }
     }
 

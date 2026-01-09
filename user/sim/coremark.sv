@@ -131,6 +131,14 @@ module coremark;
         end
     end
 
+    // 检测异常
+    always_ff @(posedge clk) begin
+        if (u_CPU_TOP.exception_valid) begin
+            $display("%10t| [EXCEPTION] PC=0x%08h, cause=%d, tval=0x%08h", $time,
+                     u_CPU_TOP.exception_pc, u_CPU_TOP.exception_cause, u_CPU_TOP.exception_tval);
+        end
+    end
+
     // 超时保护
     initial begin
         #10000000;  // 1ms 超时
