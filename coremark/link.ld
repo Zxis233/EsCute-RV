@@ -26,11 +26,8 @@ SECTIONS
     *(COMMON)
   }
 
-  /* tohost 放到高地址，但 NOLOAD，不进入 elf2hex 输出范围
-  .tohost 0x0d000000 (NOLOAD) : {
-    *(.tohost)
-  } */
-
   _stack_top = 0x0000FF00;
   _end = .;
 }
+
+ASSERT(_end < _stack_top - 0x1000, "ERROR: program too large / stack overlap!");

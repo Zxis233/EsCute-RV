@@ -74,9 +74,7 @@ Original Author: Shay Gal-on
 #define COMPILER_FLAGS \
     FLAGS_STR /* "Please put compiler flags here (e.g. -o3)" */
 #endif
-#ifndef MEM_LOCATION
-#define MEM_LOCATION "STACK"
-#endif
+
 
 /* Data Types :
         To avoid compiler issues, define the data types that need ot be used for
@@ -129,8 +127,24 @@ typedef ee_u32 CORE_TICKS;
         MEM_STACK - to allocate the data block on the stack (NYI).
 */
 #ifndef MEM_METHOD
+//     #define MEM_METHOD MEM_STATIC
+// #define MEM_METHOD MEM_MALLOC
 #define MEM_METHOD MEM_STACK
 #endif
+
+#ifndef MEM_LOCATION
+    /* 把“方法名”映射成字符串 */
+    #define MEM_LOCATION_OF_0 "STATIC"
+    #define MEM_LOCATION_OF_1 "MALLOC"
+    #define MEM_LOCATION_OF_2  "STACK"
+
+    /* 两层宏：确保 MEM_METHOD 先展开，再拼接 */
+    #define MEM_LOCATION_OF2(x) MEM_LOCATION_OF_##x
+    #define MEM_LOCATION_OF(x)  MEM_LOCATION_OF2(x)
+
+    #define MEM_LOCATION MEM_LOCATION_OF(MEM_METHOD)
+#endif
+
 
 /* Configuration : MULTITHREAD
         Define for parallel execution

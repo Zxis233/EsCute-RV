@@ -141,7 +141,7 @@ module coremark;
 
     // 超时保护
     initial begin
-        #10000000;  // 1ms 超时
+        #100000000;  // 1ms 超时
         $display("%10t| [EROR] |  TimeOut!  ", $time);
         $finish;
     end

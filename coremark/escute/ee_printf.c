@@ -422,37 +422,16 @@ static void myputs(const char* s)
     while (*s) uart_send_char(*s++);
 }
 
-/*
-int ee_printf(const char* fmt, ...)
-{
-    char buf[1024], *p;
-    va_list args;
-    int n = 0;
-
-    va_start(args, fmt);
-    ee_vsprintf(buf, fmt, args);
-    va_end(args);
-    p = buf;
-    while (*p)
-    {
-        uart_send_char(*p);
-        n++;
-        p++;
-    }
-
-    return n;
-}
-
-*/
-
-static void print_hex(uint32_t v, int width)
+static void print_hex32(uint32_t v, int width)
 {
     static const char* hex = "0123456789abcdef";
+    if (width <= 0)
+        width = 8;
     for (int i = (width - 1) * 4; i >= 0; i -= 4)
         putch(hex[(v >> i) & 0xF]);
 }
 
-static void print_udec(uint32_t x)
+static void print_udec32(uint32_t x)
 {
     char buf[16];
     int i = 0;
@@ -471,16 +450,16 @@ static void print_udec(uint32_t x)
     while (i--) putch(buf[i]);
 }
 
-static void print_dec(int v)
+static void print_dec32(int32_t v)
 {
     if (v < 0)
     {
         putch('-');
-        print_udec((uint32_t)(-v));
+        print_udec32((uint32_t)(-v));
     }
     else
     {
-        print_udec((uint32_t)v);
+        print_udec32((uint32_t)v);
     }
 }
 
@@ -499,7 +478,7 @@ int ee_printf(const char* fmt, ...)
 
         fmt++;  // skip '%'
 
-        // 支持 "%%"
+        // "%%"
         if (*fmt == '%')
         {
             putch('%');
@@ -507,17 +486,32 @@ int ee_printf(const char* fmt, ...)
             continue;
         }
 
-        // 解析宽度（支持 %04x 这种）
-        int width = 0;
+        // 解析可选 '0'
+        int zero_pad = 0;
         if (*fmt == '0')
-            fmt++;  // 忽略 0 padding 标志（这里只用宽度控制）
+        {
+            zero_pad = 1;
+            fmt++;
+        }
+
+        // 解析宽度
+        int width = 0;
         while (*fmt >= '0' && *fmt <= '9')
         {
             width = width * 10 + (*fmt - '0');
             fmt++;
         }
 
+        // ✅ 解析长度修饰符：只支持 'l'
+        int is_long = 0;
+        if (*fmt == 'l')
+        {
+            is_long = 1;
+            fmt++;
+        }
+
         char f = *fmt++;
+
         switch (f)
         {
         case 'c':
@@ -536,27 +530,44 @@ int ee_printf(const char* fmt, ...)
         }
         case 'x':
         {
-            uint32_t v = va_arg(ap, uint32_t);
+            uint32_t v;
+            if (is_long)
+                v = (uint32_t)va_arg(ap, unsigned long);  // RV32: 32-bit
+            else
+                v = (uint32_t)va_arg(ap, unsigned int);
+
             if (width == 0)
                 width = 8;
-            print_hex(v, width);
+            print_hex32(v, width);
+            break;
+        }
+        case 'u':
+        {
+            uint32_t v;
+            if (is_long)
+                v = (uint32_t)va_arg(ap, unsigned long);
+            else
+                v = (uint32_t)va_arg(ap, unsigned int);
+
+            print_udec32(v);
             break;
         }
         case 'd':
         {
-            int v = va_arg(ap, int);
-            print_dec(v);
-            break;
-        }
-        case 'u':
-        {  // ✅ 这里就是你要的 %u
-            uint32_t v = va_arg(ap, uint32_t);
-            print_udec(v);
+            int32_t v;
+            if (is_long)
+                v = (int32_t)va_arg(ap, long);
+            else
+                v = (int32_t)va_arg(ap, int);
+
+            print_dec32(v);
             break;
         }
         default:
-            // 未知格式：原样输出，方便 debug
+            // unknown specifier
             putch('%');
+            if (is_long)
+                putch('l');
             putch(f);
             break;
         }
