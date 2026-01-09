@@ -63,7 +63,7 @@ module IROM #(
             ;
             rom_file =
             // "rv32ui-p-lw"
-            "full_test_mul"
+            "full_test"
             // "mul"
             // "addi"
             ;

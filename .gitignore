@@ -25,3 +25,5 @@ coremark/docs
 *.SText
 coremark/*.hex
 coremark/*.o
+coremark/escute/*.hex
+coremark/escute/*.o

@@ -22,6 +22,9 @@ Original Author: Shay Gal-on
 /* 外部声明软件除法函数 */
 extern unsigned int __udivsi3(unsigned int, unsigned int);
 extern unsigned int __umodsi3(unsigned int, unsigned int);
+/* 64位除法函数声明 */
+extern unsigned long long __udivdi3(unsigned long long, unsigned long long);
+extern unsigned long long __umoddi3(unsigned long long, unsigned long long);
 
 #if VALIDATION_RUN
 volatile ee_s32 seed1_volatile = 0x3415;
@@ -41,12 +44,22 @@ volatile ee_s32 seed3_volatile = 0x8;
 volatile ee_s32 seed4_volatile = 10;
 volatile ee_s32 seed5_volatile = 0;
 
-/* Read mcycle CSR (cycle counter) - returns lower 32 bits */
-static inline ee_u32 read_mcycle(void)
+/* Read mcycle CSR (cycle counter) - returns full 64 bits
+ * Uses atomic read sequence to handle overflow between mcycleh and mcycle reads.
+ * mcycle:  0xB00 (low 32 bits)
+ * mcycleh: 0xB80 (high 32 bits)
+ */
+static inline ee_u64 read_mcycle64(void)
 {
-    ee_u32 cycles;
-    __asm__ volatile("csrr %0, mcycle" : "=r"(cycles));
-    return cycles;
+    ee_u32 hi1, lo, hi2;
+    /* Atomic read sequence: read high, low, high again.
+     * If high changed, low overflowed, so retry. */
+    do {
+        __asm__ volatile("csrr %0, mcycleh" : "=r"(hi1));
+        __asm__ volatile("csrr %0, mcycle" : "=r"(lo));
+        __asm__ volatile("csrr %0, mcycleh" : "=r"(hi2));
+    } while (hi1 != hi2);
+    return ((ee_u64)hi1 << 32) | (ee_u64)lo;
 }
 
 /* Porting : Timing functions
@@ -58,7 +71,7 @@ static inline ee_u32 read_mcycle(void)
 CORETIMETYPE
 barebones_clock()
 {
-    return read_mcycle();
+    return read_mcycle64();
 }
 
 /* Define : TIMER_RES_DIVIDER
@@ -74,7 +87,7 @@ barebones_clock()
  * For real hardware, set this to your actual CPU frequency in Hz
  */
 #ifndef CLOCKS_PER_SEC
-    #define CLOCKS_PER_SEC 100000000
+    #define CLOCKS_PER_SEC 20000
 #endif
 #define GETMYTIME(_t)              (*_t = barebones_clock())
 #define MYTIMEDIFF(fin, ini)       ((fin) - (ini))
@@ -134,7 +147,10 @@ get_time(void)
 secs_ret
 time_in_secs(CORE_TICKS ticks)
 {
-    secs_ret retval = ((secs_ret)ticks) / (secs_ret)EE_TICKS_PER_SEC;
+    /* Perform 64-bit division, then cast result to secs_ret (ee_u32).
+     * Since seconds is a small number, 32-bit result is sufficient. */
+    ee_u64 secs_64 = ticks / (ee_u64)EE_TICKS_PER_SEC;
+    secs_ret retval = (secs_ret)secs_64;
     return retval;
 }
 

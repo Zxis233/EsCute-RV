@@ -99,11 +99,15 @@ typedef size_t         ee_size_t;
 */
 #define align_mem(x) (void *)(4 + (((ee_ptr_int)(x)-1) & ~3))
 
+/* 64-bit unsigned type for cycle counter */
+typedef unsigned long long ee_u64;
+
 /* Configuration : CORE_TICKS
         Define type of return from the timing functions.
+        Use 64-bit to avoid overflow with mcycle counter.
  */
-#define CORETIMETYPE ee_u32
-typedef ee_u32 CORE_TICKS;
+#define CORETIMETYPE ee_u64
+typedef ee_u64 CORE_TICKS;
 
 /* Configuration : SEED_METHOD
         Defines method to get seed values that cannot be computed at compile

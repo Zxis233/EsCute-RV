@@ -95,3 +95,93 @@ int __modsi3(int dividend, int divisor)
 
     return sign * (int)result;
 }
+
+// 64位无符号除法（长除法算法）
+unsigned long long __udivdi3(unsigned long long dividend, unsigned long long divisor)
+{
+    unsigned long long quotient  = 0;
+    unsigned long long remainder = dividend;
+    int bit;
+
+    if (divisor == 0)
+        return 0;  // 除零保护
+
+    // 找到最高位
+    for (bit = 63; bit >= 0; bit--)
+    {
+        // 防止左移溢出
+        if (divisor <= (0xFFFFFFFFFFFFFFFFULL >> bit))
+        {
+            unsigned long long shifted = divisor << bit;
+            if (remainder >= shifted)
+            {
+                remainder -= shifted;
+                quotient  |= (1ULL << bit);
+            }
+        }
+    }
+
+    return quotient;
+}
+
+// 64位无符号取模
+unsigned long long __umoddi3(unsigned long long dividend, unsigned long long divisor)
+{
+    unsigned long long remainder = dividend;
+    int bit;
+
+    if (divisor == 0)
+        return dividend;  // 除零保护
+
+    for (bit = 63; bit >= 0; bit--)
+    {
+        if (divisor <= (0xFFFFFFFFFFFFFFFFULL >> bit))
+        {
+            unsigned long long shifted = divisor << bit;
+            if (remainder >= shifted)
+            {
+                remainder -= shifted;
+            }
+        }
+    }
+
+    return remainder;
+}
+
+// 64位有符号除法
+long long __divdi3(long long dividend, long long divisor)
+{
+    int negative = 0;
+    unsigned long long result;
+
+    if (dividend < 0)
+    {
+        dividend = -dividend;
+        negative = !negative;
+    }
+    if (divisor < 0)
+    {
+        divisor  = -divisor;
+        negative = !negative;
+    }
+
+    result = __udivdi3((unsigned long long)dividend, (unsigned long long)divisor);
+
+    return negative ? -(long long)result : (long long)result;
+}
+
+// 64位有符号取模
+long long __moddi3(long long dividend, long long divisor)
+{
+    int sign = (dividend < 0) ? -1 : 1;
+    unsigned long long result;
+
+    if (dividend < 0)
+        dividend = -dividend;
+    if (divisor < 0)
+        divisor = -divisor;
+
+    result = __umoddi3((unsigned long long)dividend, (unsigned long long)divisor);
+
+    return sign * (long long)result;
+}
