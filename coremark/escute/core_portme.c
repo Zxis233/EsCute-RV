@@ -15,8 +15,13 @@ limitations under the License.
 
 Original Author: Shay Gal-on
 */
-#include "coremark.h"
 #include "core_portme.h"
+
+#include "coremark.h"
+
+/* 外部声明软件除法函数 */
+extern unsigned int __udivsi3(unsigned int, unsigned int);
+extern unsigned int __umodsi3(unsigned int, unsigned int);
 
 #if VALIDATION_RUN
 volatile ee_s32 seed1_volatile = 0x3415;
@@ -33,8 +38,17 @@ volatile ee_s32 seed1_volatile = 0x8;
 volatile ee_s32 seed2_volatile = 0x8;
 volatile ee_s32 seed3_volatile = 0x8;
 #endif
-volatile ee_s32 seed4_volatile = ITERATIONS;
+volatile ee_s32 seed4_volatile = 10;
 volatile ee_s32 seed5_volatile = 0;
+
+/* Read mcycle CSR (cycle counter) - returns lower 32 bits */
+static inline ee_u32 read_mcycle(void)
+{
+    ee_u32 cycles;
+    __asm__ volatile("csrr %0, mcycle" : "=r"(cycles));
+    return cycles;
+}
+
 /* Porting : Timing functions
         How to capture time and convert to seconds must be ported to whatever is
    supported by the platform. e.g. Read value from on board RTC, read value from
@@ -44,9 +58,9 @@ volatile ee_s32 seed5_volatile = 0;
 CORETIMETYPE
 barebones_clock()
 {
-#error \
-    "You must implement a method to measure time in barebones_clock()! This function should return current time.\n"
+    return read_mcycle();
 }
+
 /* Define : TIMER_RES_DIVIDER
         Divider to trade off timer resolution and total time that can be
    measured.
@@ -55,6 +69,13 @@ barebones_clock()
    does not occur. If there are issues with the return value overflowing,
    increase this value.
         */
+/* CPU clock frequency - ADJUST THIS VALUE FOR YOUR TARGET PLATFORM
+ * Default: 100MHz (10ns per cycle in simulation)
+ * For real hardware, set this to your actual CPU frequency in Hz
+ */
+#ifndef CLOCKS_PER_SEC
+    #define CLOCKS_PER_SEC 100000000
+#endif
 #define GETMYTIME(_t)              (*_t = barebones_clock())
 #define MYTIMEDIFF(fin, ini)       ((fin) - (ini))
 #define TIMER_RES_DIVIDER          1
@@ -72,8 +93,7 @@ static CORETIMETYPE start_time_val, stop_time_val;
    example code) or zeroing some system parameters - e.g. setting the cpu clocks
    cycles to 0.
 */
-void
-start_time(void)
+void start_time(void)
 {
     GETMYTIME(&start_time_val);
 }
@@ -85,8 +105,7 @@ start_time(void)
    example code) or other system parameters - e.g. reading the current value of
    cpu cycles counter.
 */
-void
-stop_time(void)
+void stop_time(void)
 {
     GETMYTIME(&stop_time_val);
 }
@@ -102,8 +121,7 @@ stop_time(void)
 CORE_TICKS
 get_time(void)
 {
-    CORE_TICKS elapsed
-        = (CORE_TICKS)(MYTIMEDIFF(stop_time_val, start_time_val));
+    CORE_TICKS elapsed = (CORE_TICKS)(MYTIMEDIFF(stop_time_val, start_time_val));
     return elapsed;
 }
 /* Function : time_in_secs
@@ -126,16 +144,15 @@ ee_u32 default_num_contexts = 1;
         Target specific initialization code
         Test for some common mistakes.
 */
-void
-portable_init(core_portable *p, int *argc, char *argv[])
+void portable_init(core_portable* p, int* argc, char* argv[])
 {
-#error \
-    "Call board initialization routines in portable init (if needed), in particular initialize UART!\n"
+    /* No special initialization needed for this bare-metal platform */
+    /* UART is already set up via tohost mechanism in testbench */
 
-    (void)argc; // prevent unused warning
-    (void)argv; // prevent unused warning
+    (void)argc;  // prevent unused warning
+    (void)argv;  // prevent unused warning
 
-    if (sizeof(ee_ptr_int) != sizeof(ee_u8 *))
+    if (sizeof(ee_ptr_int) != sizeof(ee_u8*))
     {
         ee_printf(
             "ERROR! Please define ee_ptr_int to a type that holds a "
@@ -150,8 +167,7 @@ portable_init(core_portable *p, int *argc, char *argv[])
 /* Function : portable_fini
         Target specific final code
 */
-void
-portable_fini(core_portable *p)
+void portable_fini(core_portable* p)
 {
     p->portable_id = 0;
 }

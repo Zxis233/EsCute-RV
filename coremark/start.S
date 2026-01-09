@@ -8,6 +8,7 @@ _start:
 # la t1, __bss_end
 # ...
 
-    call     print_test
+    # call     print_test
+    call     main
 1:
     j        1b

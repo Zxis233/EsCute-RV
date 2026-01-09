@@ -570,10 +570,10 @@ module CPU_TOP (
     // DRAM模块
     DRAM #(
         // [HACK] Xilinx 可综合的位写入BRAM最大为12位地址宽度
-        .ADDR_WIDTH(12)
+        .ADDR_WIDTH(14)
     ) u_DRAM (
         .clk(clk),
-        .a  (alu_result_MEM[13:2]),  // 字节地址转换为字地址 (除以4)
+        .a  (alu_result_MEM[31:2]),  // 字节地址转换为字地址 (除以4)
         .spo(DRAM_output_data),
         .we (dram_we_MEM_strbe),
         .din(DRAM_input_data)

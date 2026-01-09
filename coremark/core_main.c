@@ -21,6 +21,14 @@ Original Author: Shay Gal-on
    initial parameters, tun t he benchmark and report the results.
 */
 #include "coremark.h"
+#define TOHOST (*(volatile ee_u32*)0x0D000720)
+static void exit_sim(ee_u32 code)
+{
+    TOHOST = code;  // code=1 => PASS
+    while (1)
+    {
+    }  // 保险起见，避免继续跑
+}
 
 /* Function: iterate
         Run the benchmark for a specified number of iterations.
@@ -110,6 +118,7 @@ main(void)
 {
     int   argc = 0;
     char *argv[1];
+    ee_printf("Hello!");
 #else
 MAIN_RETURN_TYPE
 main(int argc, char *argv[])
@@ -129,7 +138,8 @@ main(int argc, char *argv[])
     if (sizeof(struct list_head_s) > 128)
     {
         ee_printf("list_head structure too big for comparable data!\n");
-        return MAIN_RETURN_VAL;
+        // return MAIN_RETURN_VAL;
+        exit_sim(MAIN_RETURN_VAL);
     }
     results[0].seed1      = get_seed(1);
     results[0].seed2      = get_seed(2);
@@ -438,5 +448,7 @@ for (i = 0; i < MULTITHREAD; i++)
     /* And last call any target specific code for finalizing */
     portable_fini(&(results[0].port));
 
-    return MAIN_RETURN_VAL;
+    // return MAIN_RETURN_VAL;
+    exit_sim(MAIN_RETURN_VAL);
+    
 }

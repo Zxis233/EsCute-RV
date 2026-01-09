@@ -48,6 +48,8 @@ module CSR (
     logic [31:0] mip;
     // MISA
     logic [31:0] misa;
+    // mcycle - Machine Cycle Counter (64-bit, split into low and high)
+    logic [63:0] mcycle;
     // MISA is hardcoded for RV32I with Zicsr and Zmmul
     // always_comb begin
     //     misa = 32'h4000_0110;  // RV32I (base ISA) + Zicsr + Zmmul
@@ -62,16 +64,18 @@ module CSR (
     // CSR read logic
     always_comb begin
         case (csr_addr)
-            `CSR_MSTATUS:  csr_rdata = mstatus;
-            `CSR_MTVEC:    csr_rdata = mtvec;
-            `CSR_MEPC:     csr_rdata = mepc;
-            `CSR_MCAUSE:   csr_rdata = mcause;
-            `CSR_MIE:      csr_rdata = mie;
-            `CSR_MIP:      csr_rdata = mip;
-            `CSR_MSCRATCH: csr_rdata = mscratch;  // mscratch
-            `CSR_MTVAL:    csr_rdata = mtval;  // mtval
-            `CSR_MISA:     csr_rdata = misa;
-            default:       csr_rdata = 32'b0;
+            `CSR_MSTATUS:              csr_rdata = mstatus;
+            `CSR_MTVEC:                csr_rdata = mtvec;
+            `CSR_MEPC:                 csr_rdata = mepc;
+            `CSR_MCAUSE:               csr_rdata = mcause;
+            `CSR_MIE:                  csr_rdata = mie;
+            `CSR_MIP:                  csr_rdata = mip;
+            `CSR_MSCRATCH:             csr_rdata = mscratch;  // mscratch
+            `CSR_MTVAL:                csr_rdata = mtval;  // mtval
+            `CSR_MISA:                 csr_rdata = misa;
+            `CSR_MCYCLE, `CSR_CYCLE:   csr_rdata = mcycle[31:0];  // mcycle low 32 bits
+            `CSR_MCYCLEH, `CSR_CYCLEH: csr_rdata = mcycle[63:32];  // mcycle high 32 bits
+            default:                   csr_rdata = 32'b0;
         endcase
     end
 
@@ -127,6 +131,22 @@ module CSR (
                 `CSR_MISA:     misa <= misa;  // Read-only
                 default:       ;
             endcase
+        end
+    end
+
+    // mcycle counter - increments every clock cycle unconditionally
+    // Note: This is a simplified implementation without mcountinhibit support.
+    // The counter always runs unless explicitly written via CSR instructions.
+    // mcycle can be written via CSR instructions (MCYCLE/MCYCLEH)
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            mcycle <= 64'h0;
+        end else if (csr_we && csr_addr == `CSR_MCYCLE) begin
+            mcycle[31:0] <= csr_new_value;
+        end else if (csr_we && csr_addr == `CSR_MCYCLEH) begin
+            mcycle[63:32] <= csr_new_value;
+        end else begin
+            mcycle <= mcycle + 64'h1;
         end
     end
 

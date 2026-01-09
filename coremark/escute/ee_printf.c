@@ -1,47 +1,23 @@
+/*
+Copyright 2018 Embedded Microprocessor Benchmark Consortium (EEMBC)
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+#include <coremark.h>
 #include <stdarg.h>
-#include <stddef.h>
-#include <stdint.h>
 
-#define TOHOST (*(volatile uint32_t*)0x0D000720)
-
-
-static inline void putch(char c)
-{
-    TOHOST = (uint32_t)(uint8_t)c;
-}
-
-static void puts(const char* s)
-{
-    while (*s) putch(*s++);
-}
-
-static void exit_sim(uint32_t code)
-{
-    TOHOST = code;  // code=1 => PASS
-    while (1)
-    {
-    }  // 保险起见，避免继续跑
-}
-
-static void print_hex32(uint32_t x)
-{
-    const char* hex = "0123456789ABCDEF";
-    putch('0');
-    putch('x');
-    for (int i = 28; i >= 0; i -= 4)
-    {
-        putch(hex[(x >> i) & 0xF]);
-    }
-    putch('\n');
-}
-
-/* Read mcycle CSR (cycle counter) - returns lower 32 bits */
-static inline uint32_t read_mcycle(void)
-{
-    uint32_t cycles;
-    __asm__ volatile("csrr %0, mcycle" : "=r"(cycles));
-    return cycles;
-}
+#define TOHOST (*(volatile ee_u32*)0x0D000720)
 
 
 #define ZEROPAD   (1 << 0) /* Pad with zero */
@@ -53,8 +29,6 @@ static inline uint32_t read_mcycle(void)
 #define UPPERCASE (1 << 6) /* 'ABCDEF' */
 
 #define is_digit(c) ((c) >= '0' && (c) <= '9')
-
-typedef size_t ee_size_t;
 
 static char* digits       = "0123456789abcdefghijklmnopqrstuvwxyz";
 static char* upper_digits = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
@@ -406,19 +380,6 @@ ee_vsprintf(char* buf, const char* fmt, va_list args)
         case 'u':
             break;
 
-#if HAS_FLOAT
-
-        case 'f':
-            str = flt(str,
-                      va_arg(args, double),
-                      field_width,
-                      precision,
-                      *fmt,
-                      flags | SIGN);
-            continue;
-
-#endif
-
         default:
             if (*fmt != '%')
                 *str++ = '%';
@@ -443,6 +404,46 @@ ee_vsprintf(char* buf, const char* fmt, va_list args)
     return str - buf;
 }
 
+#include <stdint.h>
+
+static inline void putch(char c)
+{
+    TOHOST = (uint32_t)(uint8_t)c;
+}
+
+void uart_send_char(char c)
+{
+    TOHOST = (uint32_t)(uint8_t)c;
+    asm volatile("" ::: "memory");
+}
+
+static void myputs(const char* s)
+{
+    while (*s) uart_send_char(*s++);
+}
+
+/*
+int ee_printf(const char* fmt, ...)
+{
+    char buf[1024], *p;
+    va_list args;
+    int n = 0;
+
+    va_start(args, fmt);
+    ee_vsprintf(buf, fmt, args);
+    va_end(args);
+    p = buf;
+    while (*p)
+    {
+        uart_send_char(*p);
+        n++;
+        p++;
+    }
+
+    return n;
+}
+
+*/
 
 static void print_hex(uint32_t v, int width)
 {
@@ -483,7 +484,7 @@ static void print_dec(int v)
     }
 }
 
-int my_printf(const char* fmt, ...)
+int ee_printf(const char* fmt, ...)
 {
     va_list ap;
     va_start(ap, fmt);
@@ -563,76 +564,4 @@ int my_printf(const char* fmt, ...)
 
     va_end(ap);
     return 0;
-}
-
-int print_test(void)
-{
-    puts("=== RV32I CPU PRINT TEST ===\n");
-    puts("abcdefghijklmnopqrstuvwxyz\n");
-    puts("0123456789\n");
-    puts("!@#$%^&*()_+-=[]{};':,.<>/?\n");
-    puts("HELLO!\n\n");
-    puts("=== MATH TEST ===\n");
-
-    uint32_t a = 123;
-    uint32_t b = 456;
-
-    uint32_t sum  = a + b;
-    uint32_t diff = b - a;
-    uint32_t prod = a * b;         // RV32I 支持 mul 吗？如果你实现了 zmmul 则 OK
-    uint32_t mix  = (a << 5) ^ b;  // 位运算示例（最稳）
-
-    puts("a =");
-    print_hex32(a);
-    puts("b =");
-    print_hex32(b);
-
-    puts("a+b =");
-    print_hex32(sum);
-    puts("b-a =");
-    print_hex32(diff);
-    puts("a*b =");
-    print_hex32(prod);
-    puts("(a<<5)^b =");
-    print_hex32(mix);
-
-    puts("\n=== MCYCLE CSR TEST ===\n");
-    uint32_t cycle1 = read_mcycle();
-    puts("mcycle (start) = ");
-    print_hex32(cycle1);
-
-    // Do some work
-    volatile uint32_t dummy = 0;
-    for (int i = 0; i < 100; i++)
-    {
-        dummy += i;
-    }
-
-    uint32_t cycle2 = read_mcycle();
-    puts("mcycle (after loop) = ");
-    print_hex32(cycle2);
-
-    uint32_t cycles_elapsed = cycle2 - cycle1;
-    puts("cycles elapsed = ");
-    print_hex32(cycles_elapsed);
-
-    if (cycles_elapsed > 0)
-    {
-        puts("MCYCLE CSR TEST PASSED!\n");
-    }
-    else
-    {
-        puts("MCYCLE CSR TEST FAILED!\n");
-        exit_sim(2);  // FAIL
-    }
-
-    my_printf("Formatted number test: %d, %u, %x, %X, %o\n", 12345, 12345, 0xABCD, 0xABCD, 012345);
-    my_printf("List sort 1: %04x\n", 0xbeef);
-
-    exit_sim(1);  // ✅ 打印完通知结束
-}
-
-int math_test(void)
-{
-    exit_sim(1);
 }

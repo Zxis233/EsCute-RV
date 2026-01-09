@@ -49,7 +49,7 @@ vpath %.mak $(PORT_DIR)
 include $(PORT_DIR)/core_portme.mak
 
 ifndef ITERATIONS
-ITERATIONS=0
+ITERATIONS=10
 endif
 ifdef REBUILD
 FORCE_REBUILD=force_rebuild
