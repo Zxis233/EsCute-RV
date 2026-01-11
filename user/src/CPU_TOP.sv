@@ -56,7 +56,7 @@ module CPU_TOP (
     logic                            mul_valid_i;
     logic                            mul_valid_o;
     logic          [31:0]            mul_result;
-    logic [  MUL_STAGE:0]            mul_rd_o;
+    logic           [4:0]            mul_rd_o;
     logic                            mul_rf_we_o;
     logic                            mul_busy;
     logic [MUL_STAGE-1:0]            mul_stage_busy;
@@ -646,8 +646,10 @@ module CPU_TOP (
 
     // rf_wd_WB保留用于前递（需要考虑乘法结果）
     logic [31:0] rf_wd_WB_final;
+    logic mul_result_forwarded;
     always_comb begin
-        if (mul_valid_o && mul_rf_we_o) begin
+        mul_result_forwarded = mul_valid_o && mul_rf_we_o && (mul_rd_o == rR1 || mul_rd_o == rR2);
+        if (mul_result_forwarded) begin
             // 乘法结果用于前递
             rf_wd_WB_final = mul_result;
         end else if (wd_sel_WB == `WD_SEL_FROM_DRAM) begin
