@@ -125,7 +125,7 @@ main(void)
     char* argv[1];
     extern char _end, _stack_top;
     register ee_u32 sp asm("sp");
-    ee_printf("_end=0x%08x stack_top=0x%08x sp=0x%08x\n",
+    ee_printf("\n_end=0x%08x stack_top=0x%08x sp=0x%08x\n",
               &_end, &_stack_top, sp);
 #else
 MAIN_RETURN_TYPE
@@ -298,13 +298,14 @@ for (i = 0; i < MULTITHREAD; i++)
     total_time = get_time();
     /* get a function of the input to report */
     seedcrc    = crc16(results[0].seed1, seedcrc);
-    ee_printf("CRC_Result1 is 0x%04x\n", seedcrc);  // 对于这四句ee_printf,若注释掉的话seedcrc的值会不正常
+    ee_printf("");
     seedcrc = crc16(results[0].seed2, seedcrc);
-    ee_printf("CRC_Result2 is 0x%04x\n", seedcrc);  // 原因不明
+    ee_printf("");
     seedcrc = crc16(results[0].seed3, seedcrc);
-    ee_printf("CRC_Result3 is 0x%04x\n", seedcrc);
+    ee_printf("");
     seedcrc = crc16(results[0].size, seedcrc);
-    ee_printf("CRC_Result4 is 0x%04x\n", seedcrc);
+    // ee_printf("CRC_Result4 is 0x%04x\n", seedcrc);
+    // ee_printf("");
     // ee_printf("Seed and size is 0x%04x 0x%04x 0x%04x 0x%04x\n", results[0].seed1, results[0].seed2, results[0].seed3, results[0].size);
 
     switch (seedcrc)

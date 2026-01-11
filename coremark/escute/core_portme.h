@@ -92,15 +92,14 @@ typedef unsigned char  ee_u8;
 typedef unsigned int   ee_u32;
 typedef ee_u32         ee_ptr_int;
 typedef size_t         ee_size_t;
+/* 64-bit unsigned type for cycle counter */
+typedef unsigned long long ee_u64;
 #define NULL ((void *)0)
 /* align_mem :
         This macro is used to align an offset to point to a 32b value. It is
    used in the Matrix algorithm to initialize the input memory blocks.
 */
 #define align_mem(x) (void *)(4 + (((ee_ptr_int)(x)-1) & ~3))
-
-/* 64-bit unsigned type for cycle counter */
-typedef unsigned long long ee_u64;
 
 /* Configuration : CORE_TICKS
         Define type of return from the timing functions.
@@ -131,9 +130,9 @@ typedef ee_u64 CORE_TICKS;
         MEM_STACK - to allocate the data block on the stack (NYI).
 */
 #ifndef MEM_METHOD
-//     #define MEM_METHOD MEM_STATIC
+    #define MEM_METHOD MEM_STATIC
 // #define MEM_METHOD MEM_MALLOC
-#define MEM_METHOD MEM_STACK
+// #define MEM_METHOD MEM_STACK
 #endif
 
 #ifndef MEM_LOCATION

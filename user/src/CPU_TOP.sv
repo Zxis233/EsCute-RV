@@ -661,8 +661,6 @@ module CPU_TOP (
     // 冒险控制单元
 
     HazardUnit u_HazardUnit (
-        .clk               (clk),
-        .rst_n             (rst_n),
         .wd_sel_EX         (wd_sel_EX),
         .wd_sel_MEM        (wd_sel_MEM),
         .rs1_used_ID       (rs1_used_ID),

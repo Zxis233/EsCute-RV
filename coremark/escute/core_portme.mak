@@ -61,6 +61,6 @@ port_pre% port_post% :
 OPATH = ./
 MKDIR = mkdir -p
 
-LOAD = elf2hex 4 8192 $(OUTFILE) > $(PORT_DIR)/coremark.hex && riscv64-unknown-elf-objdump -d $(PORT_DIR)/coremark.hex > $(PORT_DIR)/coremark.SText
+LOAD = elf2hex 4 8192 $(OUTFILE) > $(PORT_DIR)/coremark.hex && riscv64-unknown-elf-objdump -d $(OUTFILE) > $(PORT_DIR)/coremark.SText
 # RUN = cd ../ && make coremark_test TESTCASE=coremark 
 RUN = TRUE
