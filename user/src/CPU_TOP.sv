@@ -14,6 +14,7 @@ module CPU_TOP (
 );
 
     localparam int unsigned XLEN = 32;
+    localparam int unsigned MUL_STAGE = 6;  // 乘法器流水线级数
     // verilog_format:off
 // ================= 各级之间的信号 ===================
     logic         valid_IF,  valid_ID,  valid_EX,  valid_MEM,  valid_WB;
@@ -51,16 +52,16 @@ module CPU_TOP (
 
     // 乘法器相关信号
     logic                   is_mul_instr_ID, is_mul_instr_EX;
-    logic [1:0]                mul_op_ID,       mul_op_EX;
-    logic                   mul_valid_i;
-    logic                   mul_valid_o;
-    logic [31:0]            mul_result;
-    logic [ 4:0]            mul_rd_o;
-    logic                   mul_rf_we_o;
-    logic                   mul_busy;
-    logic [ 3:0]            mul_stage_busy;
-    logic [ 3:0][4:0]       mul_rd_s;
-    logic [ 4:0]            mul_cancel_rd;    // WAW hazard: cancel MUL write to this register
+    logic           [1:0]   mul_op_ID,       mul_op_EX;
+    logic                            mul_valid_i;
+    logic                            mul_valid_o;
+    logic          [31:0]            mul_result;
+    logic [  MUL_STAGE:0]            mul_rd_o;
+    logic                            mul_rf_we_o;
+    logic                            mul_busy;
+    logic [MUL_STAGE-1:0]            mul_stage_busy;
+    logic [MUL_STAGE-1:0][4:0]       mul_rd_s;
+    logic           [4:0]            mul_cancel_rd;    // WAW hazard: cancel MUL write to this register
 
     logic flush_IF_ID, flush_ID_EX;
     logic keep_PC, stall_IF_ID;
@@ -660,7 +661,9 @@ module CPU_TOP (
 
     // 冒险控制单元
 
-    HazardUnit u_HazardUnit (
+    HazardUnit #(
+        .MUL_STAGE(MUL_STAGE)
+    ) u_HazardUnit (
         .wd_sel_EX         (wd_sel_EX),
         .wd_sel_MEM        (wd_sel_MEM),
         .rs1_used_ID       (rs1_used_ID),

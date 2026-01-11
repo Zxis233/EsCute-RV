@@ -1,57 +1,61 @@
 `include "include/defines.svh"
-module HazardUnit (
+module HazardUnit #(
+    parameter integer MUL_STAGE = 4  // 乘法器流水线级数
+) (
+    // verilog_format: off
     // LOAD/MUL指令判断 (扩展到3位以支持WD_SEL_FROM_MUL)
-    input  logic [ 2:0]      wd_sel_EX,
-    input  logic [ 2:0]      wd_sel_MEM,
+    input  logic          [ 2:0]       wd_sel_EX,
+    input  logic          [ 2:0]       wd_sel_MEM,
     // 寄存器使用信号
-    input  logic             rs1_used_ID,
-    input  logic             rs2_used_ID,
+    input  logic                       rs1_used_ID,
+    input  logic                       rs2_used_ID,
     // ID级源寄存器地址
-    input  logic [ 4:0]      rR1_ID,
-    input  logic [ 4:0]      rR2_ID,
+    input  logic          [ 4:0]       rR1_ID,
+    input  logic          [ 4:0]       rR2_ID,
     // EX级目的寄存器地址
-    input  logic [ 4:0]      wR_EX,
+    input  logic          [ 4:0]       wR_EX,
     // MEM级目的寄存器地址
-    input  logic [ 4:0]      wR_MEM,
+    input  logic          [ 4:0]       wR_MEM,
     // WB级目的寄存器地址
-    input  logic [ 4:0]      wR_WB,
+    input  logic          [ 4:0]       wR_WB,
     // 写入数据使能
-    input  logic             rf_we_EX,
-    input  logic             rf_we_MEM,
-    input  logic             rf_we_WB,
+    input  logic                       rf_we_EX,
+    input  logic                       rf_we_MEM,
+    input  logic                       rf_we_WB,
     // 写入数据
-    input  logic [31:0]      rf_wd_EX,
-    input  logic [31:0]      rf_wd_MEM,
-    input  logic [31:0]      rf_wd_WB,
+    input  logic           [31:0]      rf_wd_EX,
+    input  logic           [31:0]      rf_wd_MEM,
+    input  logic           [31:0]      rf_wd_WB,
     // 分支跳转信号
-    input  logic             take_branch_NextPC,
+    input  logic                       take_branch_NextPC,
     // 预留的分支预测结果
-    input  logic             branch_predicted_i,
+    input  logic                       branch_predicted_i,
     // 乘法器状态信号 (4级流水线)
     // 约定：mul_stage_busy[0]=S1 ... [3]=S4；mul_rd_s[0]=S1 ... [3]=S4
-    input  logic [ 3:0]      mul_stage_busy,      // 乘法器各级流水线忙状态
-    input  logic [ 3:0][4:0] mul_rd_s,            // 乘法器各级流水线目标寄存器地址
-    input  logic             is_mul_instr_ID,     // ID级是否为乘法指令
-    input  logic             is_mul_instr_EX,     // EX级是否为乘法指令
+    input  logic [ MUL_STAGE-1:0]      mul_stage_busy,      // 乘法器各级流水线忙状态
+    input  logic [ MUL_STAGE-1:0][4:0] mul_rd_s,            // 乘法器各级流水线目标寄存器地址
+    input  logic                       is_mul_instr_ID,     // ID级是否为乘法指令
+    input  logic                       is_mul_instr_EX,     // EX级是否为乘法指令
     // ID级目的寄存器地址和写使能 (用于WAW冒险检测)
-    input  logic [ 4:0]      wR_ID,               // ID级目的寄存器地址
-    input  logic             rf_we_ID,            // ID级寄存器写使能
+    input  logic           [ 4:0]      wR_ID,               // ID级目的寄存器地址
+    input  logic                       rf_we_ID,            // ID级寄存器写使能
     // PC保持信号
-    output logic             keep_pc,
+    output logic                       keep_pc,
     // IF/ID停顿信号
-    output logic             stall_IF_ID,
+    output logic                       stall_IF_ID,
     // IF/ID冲刷信号
-    output logic             flush_IF_ID,
+    output logic                       flush_IF_ID,
     // ID/EX冲刷信号
-    output logic             flush_ID_EX,
+    output logic                       flush_ID_EX,
     // 前递使能
-    output logic             fwd_rD1e_EX,
-    output logic             fwd_rD2e_EX,
+    output logic                       fwd_rD1e_EX,
+    output logic                       fwd_rD2e_EX,
     // 前递数据
-    output logic [31:0]      fwd_rD1_EX,
-    output logic [31:0]      fwd_rD2_EX,
+    output logic           [31:0]      fwd_rD1_EX,
+    output logic           [31:0]      fwd_rD2_EX,
     // 乘法器写回无效化信号 (WAW冒险时取消MUL写回)
-    output logic [ 4:0]      mul_cancel_rd
+    output logic           [ 4:0]      mul_cancel_rd
+    // verilog_format: on
 );
 
     // ------------------------------------------------------------
@@ -119,7 +123,6 @@ module HazardUnit (
 
     // ------------------------------------------------------------
     // MUL 冒险判断（RAW + 结构冒险 + WAW处理）
-    // 乘法器 4 级流水：S1->S2->S3->S4（结果在S4末尾可用）
     // ------------------------------------------------------------
     logic mul_use_hazard;
     logic mul_struct_hazard;
@@ -129,18 +132,16 @@ module HazardUnit (
     // 结构冒险：S1被占用时，新的乘法指令不能进入
     assign mul_struct_hazard = is_mul_instr_ID && mul_stage_busy[0];
 
-    // 将 EX + S1..S4 统一成 5 路，便于循环处理
-    // mul_rd_all[0]=EX，mul_rd_all[1]=S1 ... mul_rd_all[4]=S4
-    logic [4:0][4:0] mul_rd_all;
-    logic [4:0]      mul_vld_all;
+    logic [MUL_STAGE:0][4:0] mul_rd_all;
+    logic [MUL_STAGE:0]      mul_vld_all;
     assign mul_rd_all  = {mul_rd_s, wR_EX};
     assign mul_vld_all = {mul_stage_busy, is_mul_instr_EX};
 
     // Debug/可视化向量（可在波形里直接看每一级是否命中）
-    logic [4:0] mul_raw_hit_r1;
-    logic [4:0] mul_raw_hit_r2;
-    logic [4:0] id_reads_mul_rd;
-    logic [4:0] mul_waw_conflict;
+    logic [MUL_STAGE:0] mul_raw_hit_r1;
+    logic [MUL_STAGE:0] mul_raw_hit_r2;
+    logic [MUL_STAGE:0] id_reads_mul_rd;
+    logic [MUL_STAGE:0] mul_waw_conflict;
 
     always_comb begin
         mul_raw_hit_r1   = '0;
@@ -148,20 +149,20 @@ module HazardUnit (
         id_reads_mul_rd  = '0;
         mul_waw_conflict = '0;
 
-        for (int i = 0; i < 5; i++) begin
+        for (int i = 0; i < MUL_STAGE + 1; i++) begin
             // RAW：ID读取 rR1/rR2，且命中任一在飞MUL的rd
-            mul_raw_hit_r1[i] = mul_vld_all[i] && (mul_rd_all[i] != 5'd0) && rs1_used_ID &&
+            mul_raw_hit_r1[i] = mul_vld_all[i] && (mul_rd_all[i] != 'd0) && rs1_used_ID &&
                 (mul_rd_all[i] == rR1_ID);
-            mul_raw_hit_r2[i] = mul_vld_all[i] && (mul_rd_all[i] != 5'd0) && rs2_used_ID &&
+            mul_raw_hit_r2[i] = mul_vld_all[i] && (mul_rd_all[i] != 'd0) && rs2_used_ID &&
                 (mul_rd_all[i] == rR2_ID);
 
             // ID是否读取了该rd（用于区分 WAW 需要停顿 / 仅取消写回）
-            id_reads_mul_rd[i] = (mul_rd_all[i] != 5'd0) &&
+            id_reads_mul_rd[i] = (mul_rd_all[i] != 'd0) &&
                 ((rs1_used_ID && (rR1_ID == mul_rd_all[i])) ||
                  (rs2_used_ID && (rR2_ID == mul_rd_all[i])));
 
             // WAW冲突：ID将写 wR_ID，且与某级MUL rd 相同
-            mul_waw_conflict[i] = mul_vld_all[i] && rf_we_ID && (wR_ID != 5'd0) &&
+            mul_waw_conflict[i] = mul_vld_all[i] && rf_we_ID && (wR_ID != 'd0) &&
                 (mul_rd_all[i] == wR_ID);
         end
 
