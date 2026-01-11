@@ -6,11 +6,11 @@ module PR_ID_EX (
     // ID级输入
     input  logic [31:0] pc_id_i,
     input  logic [31:0] pc4_id_i,
-    // input  logic [31:0] instr_id_i,
+    input  logic [31:0] instr_id_i,
     // ID级输出 给EX级输入
     output logic [31:0] pc_ex_o,
     output logic [31:0] pc4_ex_o,
-    // output logic [31:0] instr_ex_o,
+    output logic [31:0] instr_ex_o,
     // 判断指令是否有效
     // 流水线冲刷时需要将指令置为无效
     input  logic        instr_valid_id_i,
@@ -69,7 +69,21 @@ module PR_ID_EX (
     input  logic        is_mul_instr_id_i,
     output logic        is_mul_instr_ex_o,
     input  logic [ 1:0] mul_op_id_i,
-    output logic [ 1:0] mul_op_ex_o
+    output logic [ 1:0] mul_op_ex_o,
+    // CSR相关
+    input  logic        is_csr_instr_id_i,
+    output logic        is_csr_instr_ex_o,
+    input  logic [ 2:0] csr_op_id_i,
+    output logic [ 2:0] csr_op_ex_o,
+    input  logic [11:0] csr_addr_id_i,
+    output logic [11:0] csr_addr_ex_o,
+    input  logic        is_ecall_id_i,
+    output logic        is_ecall_ex_o,
+    input  logic        is_mret_id_i,
+    output logic        is_mret_ex_o,
+    // 非法指令相关
+    input  logic        is_illegal_instr_id_i,
+    output logic        is_illegal_instr_ex_o
 );
 
     // 前递信号与数据
@@ -139,6 +153,7 @@ module PR_ID_EX (
         if (!rst_n) begin
             pc_ex_o          <= 32'b0;
             pc4_ex_o         <= 32'b0;
+            instr_ex_o       <= 32'b0;
             instr_valid_ex_o <= 1'b0;
 
             rf_we_ex_o       <= 1'b0;
@@ -148,6 +163,7 @@ module PR_ID_EX (
         end else if (flush && pc_id_i) begin  // 确保不是因为流水线暂停引起的冲刷
             pc_ex_o          <= 32'b0;
             pc4_ex_o         <= 32'b0;
+            instr_ex_o       <= 32'b0;
             instr_valid_ex_o <= 1'b0;
 
             rf_we_ex_o       <= 1'b0;
@@ -157,6 +173,7 @@ module PR_ID_EX (
         end else begin
             pc_ex_o          <= pc_id_i;
             pc4_ex_o         <= pc4_id_i;
+            instr_ex_o       <= instr_id_i;
             instr_valid_ex_o <= instr_valid_id_i;
 
             rf_we_ex_o       <= rf_we_id_i;
@@ -187,6 +204,32 @@ module PR_ID_EX (
         end else begin
             is_mul_instr_ex_o <= is_mul_instr_id_i;
             mul_op_ex_o       <= mul_op_id_i;
+        end
+    end
+
+    // CSR相关
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            is_csr_instr_ex_o     <= 1'b0;
+            csr_op_ex_o           <= 3'b0;
+            csr_addr_ex_o         <= 12'b0;
+            is_ecall_ex_o         <= 1'b0;
+            is_mret_ex_o          <= 1'b0;
+            is_illegal_instr_ex_o <= 1'b0;
+        end else if (flush) begin
+            is_csr_instr_ex_o     <= 1'b0;
+            csr_op_ex_o           <= 3'b0;
+            csr_addr_ex_o         <= 12'b0;
+            is_ecall_ex_o         <= 1'b0;
+            is_mret_ex_o          <= 1'b0;
+            is_illegal_instr_ex_o <= 1'b0;
+        end else begin
+            is_csr_instr_ex_o     <= is_csr_instr_id_i;
+            csr_op_ex_o           <= csr_op_id_i;
+            csr_addr_ex_o         <= csr_addr_id_i;
+            is_ecall_ex_o         <= is_ecall_id_i;
+            is_mret_ex_o          <= is_mret_id_i;
+            is_illegal_instr_ex_o <= is_illegal_instr_id_i;
         end
     end
 

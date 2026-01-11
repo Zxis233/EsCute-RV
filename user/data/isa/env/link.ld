@@ -8,10 +8,11 @@ SECTIONS
   . = ALIGN(0x1000);
   .tohost : { *(.tohost) }
   . = ALIGN(0x1000);
-  .text : { *(.text) }
+  .text : { *(.text .text.*) }
   . = ALIGN(0x1000);
-  .data : { *(.data) }
-  .bss : { *(.bss) }
+  .data : { *(.data .data.*) }
+  .rodata : { *(.rodata .rodata.*) }
+  .bss : { *(.bss .bss.*) }
   _end = .;
 }
 

@@ -127,9 +127,35 @@ run:
 		+DUMPWAVE=${DUMPWAVE} \
 		+PRINT_INFO=${PRINT_INFO} \
 # 		2>&1 | tee ${TESTCASE}.log
-# 	@echo "========================================"
-# 	@echo "测试完成! 日志文件: ${RUN_DIR}/${TESTCASE}.log"
-# 	@echo "========================================"
+
+
+coremark_test:
+	@echo "========================================"
+	@echo "运行测试: ${TESTCASE}"
+	@echo "测试文件: ${SIM_DIR}/user/data/hex/${TESTCASE}.hex"
+	@echo "========================================"
+	@rm -f ./*.elf ./*.SText
+# 	@echo "[1/3] 编译生成 ${TESTCASE}.elf ..."
+# 	@riscv64-unknown-elf-gcc \
+# 		-march=rv32i_zicsr_zmmul -mabi=ilp32 \
+# 		-nostdlib -nostartfiles \
+# 		-T coremark/link.ld \
+# 		coremark/start.S coremark/print_test.c \
+# 		-o ${TESTCASE}.elf
+
+# 	@echo "[2/3] 生成 HEX: ${SIM_DIR}/user/data/hex/${TESTCASE}.hex ..."
+# 	@elf2hex 4 8192 ${TESTCASE}.elf > ${SIM_DIR}/user/data/hex/${TESTCASE}.hex
+
+# 	@echo "[3/3] 运行仿真 ..."
+# 	@clear
+	@${SIM_TOOL} ${SIM_OPTIONS} user/sim/coremark.sv ${RTL_FILES} > /dev/null 2>&1
+	@cd ${RUN_DIR} && \
+		${SIM_EXEC} \
+		+TESTCASE=${SIM_DIR}/user/data/hex/${TESTCASE}.hex \
+		+DUMPWAVE=${DUMPWAVE} \
+		+PRINT_INFO=${PRINT_INFO}
+
+# 		2>&1 | tee ${TESTCASE}.log
 
 # ========================================
 # 波形查看

@@ -92,6 +92,7 @@
 
     `define OPCODE_LTYPE        7'b0000011
     `define OPCODE_ZICSR        7'b1110011
+    `define OPCODE_FENCE        7'b0001111
     `define OPCODE_ZERO         7'b0000000
 
 // ================== Funct3 定义 ==================
@@ -147,6 +148,7 @@
     `define WD_SEL_FROM_PC4     3'd2
     `define WD_SEL_FROM_IEXT    3'd3
     `define WD_SEL_FROM_MUL     3'd4
+    `define WD_SEL_FROM_CSR     3'd5   // 写回来自CSR
 
 // ================== ALUsrc 定义 ==================
     `define ALUSRC_RS2          1'b0
@@ -225,6 +227,11 @@
     `define CSR_CYCLEH         12'hC80
     `define CSR_INSTRET        12'hC02
     `define CSR_INSTRETH       12'hC82
+    `define CSR_MISA           12'h301
+    `define CSR_MSCRATCH       12'h340
+    `define CSR_MTVAL          12'h343
+    `define CSR_MCYCLE         12'hB00
+    `define CSR_MCYCLEH        12'hB80
 
 // ================== F3-CSR 定义 ==================
     `define FUNCT3_CSRRC        3'h3

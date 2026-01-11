@@ -20,3 +20,10 @@ test.json
 *.pb
 *.pdf
 *.out
+coremark/docs
+*.elf
+*.SText
+coremark/*.hex
+coremark/*.o
+coremark/escute/*.hex
+coremark/escute/*.o

@@ -1,6 +1,8 @@
 module PR_EX_MEM (
     input  logic        clk,
     input  logic        rst_n,
+    // 流水线控制信号
+    input  logic        flush,              // 异常时冲刷MEM级
     // EX级输入
     input  logic [31:0] pc_ex_i,
     // EX级输出 给MEM级输入
@@ -43,6 +45,17 @@ module PR_EX_MEM (
             wd_mem_o          <= 32'b0;
             rD2_mem_o         <= 32'b0;
             sl_type_mem_o     <= 4'b0;
+        end else if (flush) begin
+            // 异常发生时，清除MEM级的写使能信号，防止指令提交
+            pc_mem_o          <= 32'b0;
+            instr_valid_mem_o <= 1'b0;
+            dram_we_mem_o     <= 1'b0;
+            rf_we_mem_o       <= 1'b0;
+            wd_sel_mem_o      <= 3'b0;
+            alu_result_mem_o  <= 32'b0;
+            wd_mem_o          <= 32'b0;
+            rD2_mem_o         <= 32'b0;
+            sl_type_mem_o     <= 4'b0;
         end else begin
             pc_mem_o          <= pc_ex_i;
             instr_valid_mem_o <= instr_valid_ex_i;
@@ -59,6 +72,8 @@ module PR_EX_MEM (
     // 写回寄存器地址
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
+            wr_mem_o <= 5'b0;
+        end else if (flush) begin
             wr_mem_o <= 5'b0;
         end else begin
             wr_mem_o <= wr_ex_i;

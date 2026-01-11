@@ -1,7 +1,5 @@
 `include "include/defines.svh"
 module HazardUnit (
-    input  logic             clk,
-    input  logic             rst_n,
     // LOAD/MUL指令判断 (扩展到3位以支持WD_SEL_FROM_MUL)
     input  logic [ 2:0]      wd_sel_EX,
     input  logic [ 2:0]      wd_sel_MEM,

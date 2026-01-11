@@ -1,11 +1,11 @@
 `timescale 1ns / 1ps
 
-`include "../../src/CPU_TOP.sv"
+`include "../src/CPU_TOP.sv"
 `define DEBUG 
 
 `define REG_FILE u_CPU_TOP.u_registerf
 // verilog_format: off
-module test_tb;
+module coremark;
 
 // 时钟和复位信号
     logic        clk;
@@ -72,14 +72,38 @@ module test_tb;
         x31 = `REG_FILE.rf_in[31];
     end
 
-// 时钟生成 (100MHz, 周期 10ns)
+// 时钟生成 (100MHz, 周期 10ns)、
+    // verilog_format: on
     initial begin
         clk = 0;
         forever #5 clk = ~clk;
     end
 
-// 复位和测试控制
-    // verilog_format: on
+
+    localparam integer TOHOST_ADDR = 32'h0d000720;  // 注意：根据你的链接脚本调整！
+
+    always_ff @(posedge clk) begin
+        if (u_CPU_TOP.dram_we_MEM && u_CPU_TOP.alu_result_MEM == TOHOST_ADDR) begin
+            // ✅ 读取要写入 tohost 的数据
+            logic [31:0] tohost_data;
+            tohost_data = u_CPU_TOP.rf_rd2_MEM;
+
+            // 退出码判断
+            if (tohost_data == 32'd1) begin
+                $display("%10t| [PASS] |  Finished  ", $time);
+                $finish;
+            end else if (tohost_data == 32'd2) begin
+                $display("%10t| [FAIL] |  Finished  ", $time);
+                $finish;
+            end else begin
+                // 普通字符输出
+                $write("%c", tohost_data[7:0]);
+                $fflush();
+            end
+        end
+    end
+
+    // 复位和测试控制
     initial begin
         // 波形文件设置
         integer dumpwave;
@@ -104,37 +128,21 @@ module test_tb;
     string testcase;
     initial begin
         if ($value$plusargs("TESTCASE=%s", testcase)) begin
-            // $display("TESTCASE=%s", testcase);
         end
     end
 
-    integer unsigned test_count;
-    initial test_count = 0;
-    always_ff @(clk) begin
-        if (x17 == 32'h0d000721 || x17 == 32'h1919810) test_count <= test_count + 1;
-    end
-
-    always_comb begin
-        if (test_count == 3) begin
-            case (x17)
-                32'h0d000721: begin
-                    $display("%10t| [PASS] |\t\t| %20s", $time, testcase);
-                    $finish;
-                end
-                32'h1919810: begin
-                    $display("%10t| [FAIL] |  No.%2d\t| %20s", $time, x10, testcase);
-                    $finish;
-                end
-                default: begin
-                end
-            endcase
+    // 检测异常
+    always_ff @(posedge clk) begin
+        if (u_CPU_TOP.exception_valid) begin
+            $display("%10t| [EXCEPTION] PC=0x%08h, cause=%d, tval=0x%08h", $time,
+                     u_CPU_TOP.exception_pc, u_CPU_TOP.exception_cause, u_CPU_TOP.exception_tval);
         end
     end
 
     // 超时保护
     initial begin
-        #1000000;  // 50us 超时
-        $display("%10t| [EROR] |  TimeOut!  | %20s", $time, testcase);
+        #100000000;  // 1ms 超时
+        $display("%10t| [EROR] |  TimeOut!  ", $time);
         $finish;
     end
 
