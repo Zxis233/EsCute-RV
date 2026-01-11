@@ -77,6 +77,7 @@ module tb_CPU_TOP;
     // 时钟生成 (100MHz, 周期 10ns)
     initial begin
         clk = 0;
+        #5;
         forever #5 clk = ~clk;
     end
 

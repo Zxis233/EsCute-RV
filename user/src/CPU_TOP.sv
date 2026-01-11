@@ -345,9 +345,7 @@ module CPU_TOP (
     );
 
     // CSR模块 - 在EX级处理CSR读写和异常
-    // CSR write data selection:
-    // - Register variants (CSRRW/CSRRS/CSRRC): use rs1 value (rf_rd1_EX)
-    // - Immediate variants (CSRRWI/CSRRSI/CSRRCI): use 5-bit zimm from imm_EX
+    // 选择是否为I型CSR指令
     always_comb begin
         if (csr_op_EX[2]) begin
             // Immediate variants: zimm is zero-extended 5-bit immediate
@@ -358,29 +356,29 @@ module CPU_TOP (
         end
     end
 
-    // Exception handling:
+    // 异常处理：
     // 异常分为两类：
-    // 1. ID级异常：非法指令 - 需要早期检测以防止其前面的指令提交
+    // 1. ID级异常：非法指令 - 需要提前检测以防止其前面的指令提交
     // 2. EX级异常：地址未对齐、ECALL - 在执行阶段检测
     //
-    // - Instruction address misaligned: mcause = 0, mtval = misaligned address
-    // - Illegal instruction: mcause = 2, mtval = instruction encoding
-    // - Load address misaligned: mcause = 4, mtval = misaligned address
-    // - Store address misaligned: mcause = 6, mtval = misaligned address
-    // - ECALL: mcause = 11, mtval = 0
+    // - 指令地址未对齐：mcause = 0，mtval = 未对齐的地址
+    // - 非法指令：mcause = 2，mtval = 指令编码
+    // - 加载地址未对齐：mcause = 4，mtval = 未对齐的地址
+    // - 存储地址未对齐：mcause = 6，mtval = 未对齐的地址
+    // - ECALL：mcause = 11，mtval = 0
 
-    // Misaligned address detection (EX stage)
-    // For JALR: target must be 4-byte aligned (bit 1 must be 0 for RV32I without C extension)
-    // JALR target = (rs1 + imm) & ~1, so we check bit 1 of alu_result (before masking)
+    // 地址未对齐检测（EX级）
+    // 对于JALR：目标地址必须4字节对齐（对于没有C扩展的RV32I，位1必须为0）
+    // JALR目标 = (rs1 + imm) & ~1，所以我们检查alu_result的位1（掩码之前）
     logic instr_misaligned_EX;
     logic [31:0] jalr_target_EX;
     assign jalr_target_EX = {alu_result_EX[31:1], 1'b0};  // JALR target after masking bit 0
     assign instr_misaligned_EX = (jump_type_EX == `JUMP_JALR) && (alu_result_EX[1] != 1'b0);
 
-    // Load/Store address misaligned detection (EX stage)
-    // LW/SW: must be 4-byte aligned (bits [1:0] == 00)
-    // LH/LHU/SH: must be 2-byte aligned (bit [0] == 0)
-    // LB/LBU/SB: no alignment requirement
+    // 加载/存储地址未对齐检测（EX级）
+    // LW/SW：必须4字节对齐（位[1:0] == 00）
+    // LH/LHU/SH：必须2字节对齐（位[0] == 0）
+    // LB/LBU/SB：无对齐要求
     logic load_misaligned_EX;
     logic store_misaligned_EX;
     always_comb begin
