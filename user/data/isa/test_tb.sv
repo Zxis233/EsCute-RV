@@ -36,6 +36,16 @@ module test_tb;
                  x8,  x9,  x10, x11, x12, x13, x14, x15,
                  x16, x17, x18, x19, x20, x21, x22, x23,
                  x24, x25, x26, x27, x28, x29, x30, x31;
+    logic [31:0] tohost_data;
+    logic [31:0] tohost_data_1000;
+    logic [31:0] tohost_data_2000;
+    logic        tohost_1000_armed;
+    logic        tohost_2000_armed;
+
+    localparam logic [31:0] PASS_MAGIC = 32'h0d000721;
+    localparam logic [31:0] FAIL_MAGIC = 32'h01919810;
+    localparam int unsigned TOHOST_WORD_ADDR_1000 = 32'h1000 >> 2;
+    localparam int unsigned TOHOST_WORD_ADDR_2000 = 32'h2000 >> 2;
 
     always_comb begin
         x0  = `REG_FILE.rf_in[0];
@@ -70,6 +80,29 @@ module test_tb;
         x29 = `REG_FILE.rf_in[29];
         x30 = `REG_FILE.rf_in[30];
         x31 = `REG_FILE.rf_in[31];
+        tohost_data_1000 = u_CPU_TOP.u_DRAM.ram_data[TOHOST_WORD_ADDR_1000];
+        tohost_data_2000 = u_CPU_TOP.u_DRAM.ram_data[TOHOST_WORD_ADDR_2000];
+        if (tohost_1000_armed && tohost_data_1000 != 32'b0) begin
+            tohost_data = tohost_data_1000;
+        end else if (tohost_2000_armed && tohost_data_2000 != 32'b0) begin
+            tohost_data = tohost_data_2000;
+        end else begin
+            tohost_data = 32'b0;
+        end
+    end
+
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            tohost_1000_armed <= 1'b0;
+            tohost_2000_armed <= 1'b0;
+        end else begin
+            if (!tohost_1000_armed && tohost_data_1000 == 32'b0) begin
+                tohost_1000_armed <= 1'b1;
+            end
+            if (!tohost_2000_armed && tohost_data_2000 == 32'b0) begin
+                tohost_2000_armed <= 1'b1;
+            end
+        end
     end
 
 // 时钟生成 (100MHz, 周期 10ns)
@@ -111,23 +144,31 @@ module test_tb;
     integer unsigned test_count;
     initial test_count = 0;
     always_ff @(clk) begin
-        if (x17 == 32'h0d000721 || x17 == 32'h1919810) test_count <= test_count + 1;
+        if (x17 == PASS_MAGIC || x17 == FAIL_MAGIC) test_count <= test_count + 1;
     end
 
     always_comb begin
         if (test_count == 3) begin
             case (x17)
-                32'h0d000721: begin
+                PASS_MAGIC: begin
                     $display("%10t| [PASS] |\t\t| %20s", $time, testcase);
                     $finish;
                 end
-                32'h1919810: begin
+                FAIL_MAGIC: begin
                     $display("%10t| [FAIL] |  No.%2d\t| %20s", $time, x10, testcase);
                     $finish;
                 end
                 default: begin
                 end
             endcase
+        end else if (rst_n && tohost_data != 32'b0) begin
+            if (tohost_data == 32'd1) begin
+                $display("%10t| [PASS] |\t\t| %20s", $time, testcase);
+                $finish;
+            end else if (tohost_data[0]) begin
+                $display("%10t| [FAIL] |  No.%2d\t| %20s", $time, (tohost_data >> 1), testcase);
+                $finish;
+            end
         end
     end
 

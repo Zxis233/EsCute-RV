@@ -216,7 +216,18 @@
     `define MEM_SW              4'b10_11
 
 // ================== CSR    定义 ==================
+    `define CSR_SSTATUS        12'h100
+    `define CSR_SIE            12'h104
+    `define CSR_STVEC          12'h105
+    `define CSR_SSCRATCH       12'h140
+    `define CSR_SEPC           12'h141
+    `define CSR_SCAUSE         12'h142
+    `define CSR_STVAL          12'h143
+    `define CSR_SIP            12'h144
+    `define CSR_SATP           12'h180
     `define CSR_MSTATUS        12'h300
+    `define CSR_MEDELEG        12'h302
+    `define CSR_MIDELEG        12'h303
     `define CSR_MTVEC          12'h305
     `define CSR_MEPC           12'h341
     `define CSR_MCAUSE         12'h342
@@ -240,6 +251,21 @@
     `define FUNCT3_CSRRW        3'h1
     `define FUNCT3_CSRRWI       3'h5
     `define FUNCT3_CALL         3'h0
+
+// ================== Privilege 定义 ==================
+    `define PRV_U               2'b00
+    `define PRV_S               2'b01
+    `define PRV_M               2'b11
+
+// ================== Exception Cause 定义 ==================
+    `define EXC_INST_MISALIGNED 32'd0
+    `define EXC_ILLEGAL_INSTR   32'd2
+    `define EXC_BREAKPOINT      32'd3
+    `define EXC_LOAD_MISALIGNED 32'd4
+    `define EXC_STORE_MISALIGNED 32'd6
+    `define EXC_ECALL_U         32'd8
+    `define EXC_ECALL_S         32'd9
+    `define EXC_ECALL_M         32'd11
 
 //verilog_format: on
 

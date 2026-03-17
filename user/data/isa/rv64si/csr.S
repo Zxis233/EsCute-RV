@@ -26,31 +26,81 @@ RVTEST_CODE_BEGIN
 
   # For RV64, make sure UXL encodes RV64.  (UXL does not exist for RV32.)
 #if __riscv_xlen == 64
-  TEST_CASE(13, a0, SSTATUS_UXL & (SSTATUS_UXL << 1), csrr a0, sstatus; li a1, SSTATUS_UXL; and a0, a0, a1)
+  # If running in M mode, use mstatus.MPP to check existence of U mode.
+  # Otherwise, if in S mode, then U mode must exist and we don't need to check.
+#ifdef __MACHINE_MODE
+  li t0, MSTATUS_MPP
+  csrc mstatus, t0
+  csrr t1, mstatus
+  and t0, t0, t1
+  bnez t0, 1f
+#endif
+  # If U mode is present, UXL should be 2 (XLEN = 64-bit)
+  TEST_CASE(18, a0, SSTATUS_UXL & (SSTATUS_UXL << 1), csrr a0, sstatus; li a1, SSTATUS_UXL; and a0, a0, a1)
+#ifdef __MACHINE_MODE
+  j 2f
+1:
+  # If U mode is not present, UXL should be 0
+  TEST_CASE(19, a0, 0, csrr a0, sstatus; li a1, SSTATUS_UXL; and a0, a0, a1)
+2:
+#endif
 #endif
 
-        /*Bob added code to disbale the interrupt enables because in irq handler the mscratch will be changed */             
-        csrwi mstatus, 0;                                               
+  TEST_CASE(20, a0,         0, csrw sscratch, zero; csrr a0, sscratch);
+  TEST_CASE(21, a0,         0, csrrwi a0, sscratch, 0; csrrwi a0, sscratch, 0xF);
+  TEST_CASE(22, a0,      0x1f, csrrsi x0, sscratch, 0x10; csrr a0, sscratch);
+
   csrwi sscratch, 3
   TEST_CASE( 2, a0,         3, csrr a0, sscratch);
   TEST_CASE( 3, a1,         3, csrrci a1, sscratch, 1);
   TEST_CASE( 4, a2,         2, csrrsi a2, sscratch, 4);
   TEST_CASE( 5, a3,         6, csrrwi a3, sscratch, 2);
   TEST_CASE( 6, a1,         2, li a0, 0xbad1dea; csrrw a1, sscratch, a0);
-  TEST_CASE( 7, a0, 0xbad1dea, li a0, 0x0001dea; csrrc a0, sscratch, a0);
-  TEST_CASE( 8, a0, 0xbad0000, li a0, 0x000beef; csrrs a0, sscratch, a0);
-  TEST_CASE( 9, a0, 0xbadbeef, csrr a0, sscratch);
-        /*Bob added code to enable the interrupt enables again*/       
-        li a0, MSTATUS_MIE;
-        csrs mstatus, a0; 
+  TEST_CASE( 7, a1, 0xbad1dea, li a0, 0x0001dea; csrrc a1, sscratch, a0);
+  TEST_CASE( 8, a1, 0xbad0000, li a0, 0x000beef; csrrs a1, sscratch, a0);
+  TEST_CASE( 9, a0, 0xbadbeef, li a0, 0xbad1dea; csrrw a0, sscratch, a0);
+  TEST_CASE(10, a0, 0xbad1dea, li a0, 0x0001dea; csrrc a0, sscratch, a0);
+  TEST_CASE(11, a0, 0xbad0000, li a0, 0x000beef; csrrs a0, sscratch, a0);
+  TEST_CASE(12, a0, 0xbadbeef, csrr a0, sscratch);
 
 #ifdef __MACHINE_MODE
+  # Is F extension present?
+  csrr a0, misa
+  andi a0, a0, (1 << ('F' - 'A'))
+  beqz a0, 1f
+  # If so, make sure FP stores have no effect when mstatus.FS is off.
+  li a1, MSTATUS_FS
+  csrs mstatus, a1
+#ifdef __riscv_flen
+  fmv.s.x f0, x0
+  csrc mstatus, a1
+  la a1, fsw_data
+  TEST_CASE(13, a0, 1, fsw f0, (a1); lw a0, (a1));
+#else
+  # Fail if this test is compiled without F but executed on a core with F.
+  TEST_CASE(13, zero, 1)
+#endif
+1:
+
   # Figure out if 'U' is set in misa
   csrr a0, misa   # a0 = csr(misa)
   srli a0, a0, 20 # a0 = a0 >> 20
   andi a0, a0, 1  # a0 = a0 & 1
   beqz a0, finish # if no user mode, skip the rest of these checks
-#endif
+
+  # Enable access to the cycle counter
+  csrwi mcounteren, 1
+
+  # Figure out if 'S' is set in misa
+  csrr a0, misa   # a0 = csr(misa)
+  srli a0, a0, 18 # a0 = a0 >> 20
+  andi a0, a0, 1  # a0 = a0 & 1
+  beqz a0, 1f
+
+  # Enable access to the cycle counter
+  csrwi scounteren, 1
+1:
+#endif /* __MACHINE_MODE */
 
   # jump to user land
   li t0, SSTATUS_SPP
@@ -63,15 +113,15 @@ RVTEST_CODE_BEGIN
   # Make sure writing the cycle counter causes an exception.
   # Don't run in supervisor, as we don't delegate illegal instruction traps.
 #ifdef __MACHINE_MODE
-  TEST_CASE(11, a0, 255, li a0, 255; csrrw a0, cycle, x0);
+  TEST_CASE(14, a0, 255, li a0, 255; csrrw a0, cycle, x0);
 #endif
 
   # Make sure reading status in user mode causes an exception.
   # Don't run in supervisor, as we don't delegate illegal instruction traps.
 #ifdef __MACHINE_MODE
-  TEST_CASE(12, a0, 255, li a0, 255; csrr a0, sstatus)
+  TEST_CASE(15, a0, 255, li a0, 255; csrr a0, sstatus)
 #else
-  TEST_CASE(12, x0, 0, nop)
+  TEST_CASE(15, x0, 0, nop)
 #endif
 
 finish:
@@ -81,13 +131,12 @@ finish:
   TEST_PASSFAIL
 
   .align 2
+  .global stvec_handler
 stvec_handler:
-  # Trapping on tests 10-12 is good news.
-  # In this environment TESTNUM already reflects the current case number,
-  # so the privileged-trap window needs to include test 12 itself.
-  li t0, 9
+  # Trapping on tests 13-15 is good news.
+  li t0, 13
   bltu TESTNUM, t0, 1f
-  li t0, 12
+  li t0, 15
   bleu TESTNUM, t0, privileged
 1:
 

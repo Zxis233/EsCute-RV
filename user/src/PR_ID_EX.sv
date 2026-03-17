@@ -81,6 +81,8 @@ module PR_ID_EX (
     output logic        is_ecall_ex_o,
     input  logic        is_mret_id_i,
     output logic        is_mret_ex_o,
+    input  logic        is_sret_id_i,
+    output logic        is_sret_ex_o,
     // 非法指令相关
     input  logic        is_illegal_instr_id_i,
     output logic        is_illegal_instr_ex_o
@@ -215,6 +217,7 @@ module PR_ID_EX (
             csr_addr_ex_o         <= 12'b0;
             is_ecall_ex_o         <= 1'b0;
             is_mret_ex_o          <= 1'b0;
+            is_sret_ex_o          <= 1'b0;
             is_illegal_instr_ex_o <= 1'b0;
         end else if (flush) begin
             is_csr_instr_ex_o     <= 1'b0;
@@ -222,6 +225,7 @@ module PR_ID_EX (
             csr_addr_ex_o         <= 12'b0;
             is_ecall_ex_o         <= 1'b0;
             is_mret_ex_o          <= 1'b0;
+            is_sret_ex_o          <= 1'b0;
             is_illegal_instr_ex_o <= 1'b0;
         end else begin
             is_csr_instr_ex_o     <= is_csr_instr_id_i;
@@ -229,6 +233,7 @@ module PR_ID_EX (
             csr_addr_ex_o         <= csr_addr_id_i;
             is_ecall_ex_o         <= is_ecall_id_i;
             is_mret_ex_o          <= is_mret_id_i;
+            is_sret_ex_o          <= is_sret_id_i;
             is_illegal_instr_ex_o <= is_illegal_instr_id_i;
         end
     end

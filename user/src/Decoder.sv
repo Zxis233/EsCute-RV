@@ -31,6 +31,7 @@ module Decoder (
     output logic [11:0] csr_addr,         // CSR地址
     output logic        is_ecall,         // ECALL指令
     output logic        is_mret,          // MRET指令
+    output logic        is_sret,          // SRET指令
     // 非法指令检测
     output logic        is_illegal_instr  // 非法指令标识
 );
@@ -75,7 +76,7 @@ module Decoder (
     assign rs1_used =
         ~((opcode == OPCODE_LUI) || (opcode == OPCODE_AUIPC) || (opcode == OPCODE_JAL) ||
           (opcode == OPCODE_ZERO) || csr_use_imm ||
-          ((opcode == OPCODE_ZICSR) && (funct3 == `FUNCT3_CALL)));  // ECALL/MRET don't use rs1
+          ((opcode == OPCODE_ZICSR) && (funct3 == `FUNCT3_CALL)));  // ECALL/MRET/SRET don't use rs1
     // // rs2：只有 R-type / B-type / S-type 用到
     assign
         rs2_used = (opcode == OPCODE_RTYPE) || (opcode == OPCODE_BTYPE) || (opcode == OPCODE_STYPE);
@@ -304,7 +305,7 @@ module Decoder (
     end
     // verilog_format:on
 
-    // CSR指令检测和ECALL/MRET检测
+    // CSR指令检测和ECALL/MRET/SRET检测
     // verilog_format:off
     always_comb begin : csr_detection
         // 提取CSR地址
@@ -315,19 +316,23 @@ module Decoder (
             if (funct3 == `FUNCT3_CALL) begin
                 // ECALL: instr = 0x00000073
                 // MRET:  instr = 0x30200073
+                // SRET:  instr = 0x10200073
                 is_csr_instr = 1'b0;
                 is_ecall     = (instr[31:7] == 25'b0);
                 is_mret      = (instr[31:7] == 25'b0011000000100000000000000);
+                is_sret      = (instr[31:7] == 25'b0001000000100000000000000);
             end else begin
                 // CSR instructions: CSRRW, CSRRS, CSRRC, CSRRWI, CSRRSI, CSRRCI
                 is_csr_instr = 1'b1;
                 is_ecall     = 1'b0;
                 is_mret      = 1'b0;
+                is_sret      = 1'b0;
             end
         end else begin
             is_csr_instr = 1'b0;
             is_ecall     = 1'b0;
             is_mret      = 1'b0;
+            is_sret      = 1'b0;
         end
     end
     // verilog_format:on
@@ -441,12 +446,15 @@ module Decoder (
                 if (funct3 == `FUNCT3_CALL) begin
                     // ECALL: instr = 0x00000073
                     // MRET:  instr = 0x30200073
+                    // SRET:  instr = 0x10200073
                     // EBREAK: instr = 0x00100073 (not supported, marked as illegal)
                     // WFI: instr = 0x10500073 (not supported, marked as illegal)
                     // Check ECALL: bits[31:7] = 0
                     // Check MRET: bits[31:20]=0x302, bits[19:7]=0
+                    // Check SRET: bits[31:20]=0x102, bits[19:7]=0
                     is_illegal_instr = !((instr == 32'h00000073) ||  // ECALL
-                                         (instr == 32'h30200073));   // MRET
+                                         (instr == 32'h30200073) ||  // MRET
+                                         (instr == 32'h10200073));   // SRET
                 end else begin
                     // CSR instructions: funct3 001-011, 101-111 are valid
                     // funct3 = 000 handled above, funct3 = 100 is invalid
@@ -574,23 +582,25 @@ module Decoder (
         endcase
       end
 
-      OPCODE_ZICSR: begin
-        unique case (funct3)
-          `FUNCT3_CSRRW:        instr_ascii = "CSRRW";
-          `FUNCT3_CSRRS:        instr_ascii = "CSRRS";
-          `FUNCT3_CSRRC:        instr_ascii = "CSRRC";
+            OPCODE_ZICSR: begin
+                unique case (funct3)
+                    `FUNCT3_CSRRW:        instr_ascii = "CSRRW";
+                    `FUNCT3_CSRRS:        instr_ascii = "CSRRS";
+                    `FUNCT3_CSRRC:        instr_ascii = "CSRRC";
           `FUNCT3_CSRRWI:       instr_ascii = "CSRRWI";
           `FUNCT3_CSRRSI:       instr_ascii = "CSRRSI";
           `FUNCT3_CSRRCI:       instr_ascii = "CSRRCI";
-          `FUNCT3_CALL: begin
-            if (instr == 32'h00000073)
+                    `FUNCT3_CALL: begin
+                        if (instr == 32'h00000073)
                                 instr_ascii = "ECALL";
-            else if (instr == 32'h30200073)
+                        else if (instr == 32'h30200073)
                                 instr_ascii = "MRET";
-            else                instr_ascii = "SYS_UNKNOWN";
-          end
-          default:              instr_ascii = "CSR_UNKNOWN";
-        endcase
+                        else if (instr == 32'h10200073)
+                                instr_ascii = "SRET";
+                        else                instr_ascii = "SYS_UNKNOWN";
+                    end
+                    default:              instr_ascii = "CSR_UNKNOWN";
+                endcase
       end
 
       7'hf:                     instr_ascii = "FENCE";

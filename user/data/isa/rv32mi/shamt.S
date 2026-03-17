@@ -23,8 +23,8 @@ RVTEST_CODE_BEGIN
 
 mtvec_handler:
   # Trapping on test 3 is good.
-  # Note that since the test didn't complete, TESTNUM is smaller by 1.
-  li t0, 2
+  # In this environment TESTNUM already reflects the current case number.
+  li t0, 3
   bne TESTNUM, t0, fail
 
   # Make sure CAUSE indicates an illegal instructino.

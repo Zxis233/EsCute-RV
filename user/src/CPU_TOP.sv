@@ -71,11 +71,20 @@ module CPU_TOP (
     logic [11:0] csr_addr_ID, csr_addr_EX;
     logic        is_ecall_ID, is_ecall_EX;
     logic        is_mret_ID, is_mret_EX;
+    logic        is_sret_ID, is_sret_EX;
     logic [31:0] csr_rdata_EX;
     logic [31:0] csr_wdata_EX;
+    logic        csr_write_intent_ID, csr_write_intent_EX;
+    logic [ 1:0] current_priv_mode;
+    logic        mstatus_tsr;
+    logic        mstatus_tvm;
 
     // 非法指令检测信号
     logic        is_illegal_instr_ID, is_illegal_instr_EX;
+    logic        privileged_illegal_instr_ID;
+    logic        illegal_instr_exception_effective_ID;
+    logic        flushes_id_exception_ID;
+    logic        redirect_from_ex_stage;
 
     // Exception/Trap相关信号
     logic        exception_valid;
@@ -84,7 +93,7 @@ module CPU_TOP (
     logic [31:0] exception_tval;
     logic        trap_to_mmode;
     logic [31:0] trap_target;
-    logic [31:0] mret_target;
+    logic [31:0] xret_target;
 
     // 提前检测的非法指令异常 (在ID级检测)
     // 这样可以在非法指令进入EX之前就触发异常，防止其前一条指令提交
@@ -196,14 +205,34 @@ module CPU_TOP (
         .csr_addr       (csr_addr_ID),
         .is_ecall       (is_ecall_ID),
         .is_mret        (is_mret_ID),
+        .is_sret        (is_sret_ID),
         // 非法指令检测
         .is_illegal_instr(is_illegal_instr_ID)
     );
 
+    always_comb begin
+        unique case (csr_op_ID)
+            `FUNCT3_CSRRW, `FUNCT3_CSRRWI: csr_write_intent_ID = is_csr_instr_ID;
+            `FUNCT3_CSRRS, `FUNCT3_CSRRC, `FUNCT3_CSRRSI, `FUNCT3_CSRRCI:
+                csr_write_intent_ID = is_csr_instr_ID && (instr_ID[19:15] != 5'b0);
+            default: csr_write_intent_ID = 1'b0;
+        endcase
+    end
+
+    assign privileged_illegal_instr_ID =
+        (is_csr_instr_ID && (current_priv_mode < csr_addr_ID[9:8])) ||
+        (is_csr_instr_ID && csr_write_intent_ID && (csr_addr_ID[11:10] == 2'b11)) ||
+        (is_csr_instr_ID && (csr_addr_ID == `CSR_SATP) &&
+         (current_priv_mode == `PRV_S) && mstatus_tvm) ||
+        (is_mret_ID && (current_priv_mode != `PRV_M)) ||
+        (is_sret_ID &&
+         ((current_priv_mode == `PRV_U) ||
+          ((current_priv_mode == `PRV_S) && mstatus_tsr)));
+
     // 早期非法指令异常检测 (ID级)
     // 当检测到非法指令时，在ID级就触发异常
     // 这样可以防止非法指令前面的指令(在EX级)提交
-    assign illegal_instr_exception_ID = is_illegal_instr_ID && valid_ID;
+    assign illegal_instr_exception_ID = (is_illegal_instr_ID || privileged_illegal_instr_ID) && valid_ID;
     assign illegal_instr_pc_ID = pc_ID;
     assign illegal_instr_encoding_ID = instr_ID;
 
@@ -296,8 +325,10 @@ module CPU_TOP (
         .is_ecall_ex_o       (is_ecall_EX),
         .is_mret_id_i        (is_mret_ID),
         .is_mret_ex_o        (is_mret_EX),
+        .is_sret_id_i        (is_sret_ID),
+        .is_sret_ex_o        (is_sret_EX),
         // 非法指令相关
-        .is_illegal_instr_id_i(is_illegal_instr_ID),
+        .is_illegal_instr_id_i(is_illegal_instr_ID || privileged_illegal_instr_ID),
         .is_illegal_instr_ex_o(is_illegal_instr_EX)
     );
 
@@ -322,7 +353,7 @@ module CPU_TOP (
     // 乘法器 - 四级流水线，与EX级并行
     // 乘法指令在EX级启动，结果在4个周期后可用
     // 只有分支跳转会阻止乘法器启动，数据冒险不会
-    assign mul_valid_i = is_mul_instr_EX && valid_EX && !take_branch_NextPC;
+    assign mul_valid_i = is_mul_instr_EX && valid_EX && !redirect_from_ex_stage;
 
     MUL u_MUL (
         .clk             (clk),
@@ -332,7 +363,7 @@ module CPU_TOP (
         .mul_src1_i      (rf_rd1_EX),
         .mul_src2_i      (rf_rd2_EX),
         .mul_rd_i        (wR_EX),
-        .flush_i         (take_branch_NextPC),  // 分支跳转时冲刷乘法器
+        .flush_i         (redirect_from_ex_stage),  // EX级控制流改变时冲刷乘法器
         .cancel_rd_i     (mul_cancel_rd),       // WAW hazard: cancel write to this register
         .mul_valid_o     (mul_valid_o),
         .mul_result_o    (mul_result),
@@ -357,6 +388,15 @@ module CPU_TOP (
         end
     end
 
+    always_comb begin
+        unique case (csr_op_EX)
+            `FUNCT3_CSRRW, `FUNCT3_CSRRWI: csr_write_intent_EX = is_csr_instr_EX;
+            `FUNCT3_CSRRS, `FUNCT3_CSRRC, `FUNCT3_CSRRSI, `FUNCT3_CSRRCI:
+                csr_write_intent_EX = is_csr_instr_EX && (instr_EX[19:15] != 5'b0);
+            default: csr_write_intent_EX = 1'b0;
+        endcase
+    end
+
     // Exception handling:
     // 异常分为两类：
     // 1. ID级异常：非法指令 - 需要早期检测以防止其前面的指令提交
@@ -370,11 +410,20 @@ module CPU_TOP (
 
     // Misaligned address detection (EX stage)
     // For JALR: target must be 4-byte aligned (bit 1 must be 0 for RV32I without C extension)
-    // JALR target = (rs1 + imm) & ~1, so we check bit 1 of alu_result (before masking)
+    // JAL/branch targets must also be 4-byte aligned when the C extension is absent.
+    // JALR target = (rs1 + imm) & ~1, so we check bit 1 of alu_result (before masking).
     logic instr_misaligned_EX;
     logic [31:0] jalr_target_EX;
+    logic [31:0] branch_target_normal;
+    logic [31:0] instr_target_EX;
+    logic branch_jal_target_misaligned_EX;
     assign jalr_target_EX = {alu_result_EX[31:1], 1'b0};  // JALR target after masking bit 0
-    assign instr_misaligned_EX = (jump_type_EX == `JUMP_JALR) && (alu_result_EX[1] != 1'b0);
+    assign branch_jal_target_misaligned_EX = take_branch_normal &&
+                                             (jump_type_EX != `JUMP_JALR) &&
+                                             (branch_target_normal[1] != 1'b0);
+    assign instr_misaligned_EX = ((jump_type_EX == `JUMP_JALR) && (alu_result_EX[1] != 1'b0)) ||
+                                 branch_jal_target_misaligned_EX;
+    assign instr_target_EX = (jump_type_EX == `JUMP_JALR) ? jalr_target_EX : branch_target_normal;
 
     // Load/Store address misaligned detection (EX stage)
     // LW/SW: must be 4-byte aligned (bits [1:0] == 00)
@@ -403,6 +452,15 @@ module CPU_TOP (
     logic take_branch_normal;
     assign exception_valid_EX = (instr_misaligned_EX || load_misaligned_EX ||
                                  store_misaligned_EX || is_ecall_EX) && valid_EX;
+    assign redirect_from_ex_stage = take_branch_normal ||
+                                    exception_valid_EX ||
+                                    (is_mret_EX && valid_EX) ||
+                                    (is_sret_EX && valid_EX);
+    assign flushes_id_exception_ID = take_branch_normal ||
+                                     (is_mret_EX && valid_EX) ||
+                                     (is_sret_EX && valid_EX);
+    assign illegal_instr_exception_effective_ID =
+        illegal_instr_exception_ID && !flushes_id_exception_ID;
 
     // 总异常信号：EX级异常 OR ID级非法指令异常
     // 优先级：EX级异常 > ID级异常
@@ -410,7 +468,7 @@ module CPU_TOP (
     // 所以ID级的非法指令异常不应该生效
     // 这防止了跳转到数据区域时，数据被误认为非法指令而触发异常
     assign exception_valid = exception_valid_EX ||
-                             (illegal_instr_exception_ID && !take_branch_normal);
+                             illegal_instr_exception_effective_ID;
 
     // 异常PC和原因/值的选择
     always_comb begin
@@ -418,28 +476,32 @@ module CPU_TOP (
             // EX级地址未对齐异常优先
             exception_pc    = pc_EX;
             exception_cause = 32'd0;  // Instruction address misaligned
-            exception_tval  = jalr_target_EX;
+            exception_tval  = instr_target_EX;
         end else if (load_misaligned_EX && valid_EX) begin
             exception_pc    = pc_EX;
             exception_cause = 32'd4;  // Load address misaligned
             exception_tval  = alu_result_EX;
         end else if (store_misaligned_EX && valid_EX) begin
             exception_pc    = pc_EX;
-            exception_cause = 32'd6;  // Store address misaligned
+            exception_cause = `EXC_STORE_MISALIGNED;
             exception_tval  = alu_result_EX;
         end else if (is_ecall_EX && valid_EX) begin
             exception_pc    = pc_EX;
-            exception_cause = 32'd11;  // ECALL
+            case (current_priv_mode)
+                `PRV_U:  exception_cause = `EXC_ECALL_U;
+                `PRV_S:  exception_cause = `EXC_ECALL_S;
+                default: exception_cause = `EXC_ECALL_M;
+            endcase
             exception_tval  = 32'b0;
-        end else if (illegal_instr_exception_ID) begin
+        end else if (illegal_instr_exception_effective_ID) begin
             // ID级非法指令异常
             exception_pc    = illegal_instr_pc_ID;
-            exception_cause = 32'd2;  // Illegal instruction
+            exception_cause = `EXC_ILLEGAL_INSTR;
             exception_tval  = illegal_instr_encoding_ID;
         end else begin
             // 默认值 (不应该到达这里)
             exception_pc    = pc_EX;
-            exception_cause = 32'd0;
+            exception_cause = `EXC_INST_MISALIGNED;
             exception_tval  = 32'b0;
         end
     end
@@ -448,7 +510,7 @@ module CPU_TOP (
         .clk            (clk),
         .rst_n          (rst_n),
         // CSR instruction interface
-        .csr_we         (is_csr_instr_EX && valid_EX),
+        .csr_we         (is_csr_instr_EX && valid_EX && csr_write_intent_EX),
         .csr_addr       (csr_addr_EX),
         .csr_wdata      (csr_wdata_EX),
         .csr_op         (csr_op_EX),
@@ -458,18 +520,19 @@ module CPU_TOP (
         .exception_pc   (exception_pc),
         .exception_cause(exception_cause),
         .exception_tval (exception_tval),
-        // MRET interface
+        // xRET interface
         .mret_valid     (is_mret_EX && valid_EX),
+        .sret_valid     (is_sret_EX && valid_EX),
         // Trap output
         .trap_to_mmode  (trap_to_mmode),
         .trap_target    (trap_target),
-        .mret_target    (mret_target)
+        .xret_target    (xret_target),
+        .current_priv_mode(current_priv_mode),
+        .mstatus_tsr    (mstatus_tsr),
+        .mstatus_tvm    (mstatus_tvm)
     );
 
-    // NextPC 计算 - 现在需要考虑ECALL和MRET
-    // take_branch_NextPC和branch_target_NextPC需要考虑异常和MRET
-    logic [31:0] branch_target_normal;
-
+    // NextPC 计算 - 现在需要考虑异常、MRET和SRET
     NextPC_Generator u_NextPC_Generator (
         .is_branch_instr     (is_branch_instr_EX),
         .branch_type         (branch_type_EX),
@@ -483,14 +546,14 @@ module CPU_TOP (
         .branch_target_NextPC(branch_target_normal)
     );
 
-    // 优先级: ECALL > MRET > Normal branch/jump
+    // 优先级: Exception > xRET > Normal branch/jump
     always_comb begin
         if (exception_valid) begin
             take_branch_NextPC    = 1'b1;
             branch_target_NextPC  = trap_target;
-        end else if (is_mret_EX && valid_EX) begin
+        end else if ((is_mret_EX || is_sret_EX) && valid_EX) begin
             take_branch_NextPC    = 1'b1;
-            branch_target_NextPC  = mret_target;
+            branch_target_NextPC  = xret_target;
         end else begin
             take_branch_NextPC    = take_branch_normal;
             branch_target_NextPC  = branch_target_normal;
@@ -515,17 +578,12 @@ module CPU_TOP (
 // ================= EX/MEM 流水线寄存器 ===================
 
     // 异常处理和流水线冲刷：
-    // 1. EX级异常（地址未对齐、ECALL）：
-    //    - flush_EX_MEM = 1: 阻止EX级异常指令进入MEM
-    //    - flush_MEM_WB = 0: MEM/WB级指令是异常指令之前的，正常提交
-    // 2. ID级异常（非法指令，仅当EX没有异常时）：
-    //    - flush_EX_MEM = 1: 阻止EX级指令进入MEM（EX级指令在非法指令之前）
-    //    - flush_MEM_WB = 1: 阻止MEM/WB级指令提交（它们也在非法指令之前）
+    // - EX级异常需要阻止 faulting 指令进入 MEM
+    // - ID级非法指令只应杀掉它自己和更年轻的指令，不能回滚更老的 EX/MEM/WB 指令
     logic flush_EX_MEM;
     logic flush_MEM_WB;
-    assign flush_EX_MEM = exception_valid;
-    // 只有当ID级非法指令异常触发且没有EX级异常时，才冲刷MEM/WB
-    assign flush_MEM_WB = illegal_instr_exception_ID && !exception_valid_EX;
+    assign flush_EX_MEM = exception_valid_EX;
+    assign flush_MEM_WB = 1'b0;
 
     PR_EX_MEM u_PR_EX_MEM (
         .clk              (clk),

@@ -4,10 +4,15 @@
 
 XLEN ?= 32
 
-src_dir := .
+src_dir ?= .
+src_root := $(patsubst %/,%,$(src_dir))
+generated_dir := $(src_root)/generated
+hex_dir := $(src_root)/hex
+verilog_dir := $(src_root)/verilog
 
 include $(src_dir)/rv32ui/Makefrag
 include $(src_dir)/rv32mi/Makefrag
+include $(src_dir)/rv32si/Makefrag
 
 default: all
 
@@ -32,11 +37,11 @@ vpath %.S $(src_dir)
 	$(RISCV_OBJCOPY) $<   $<.verilog
 	sed -i 's/@800/@000/g' $<.verilog
 	sed -i 's/@00002FB8/@00002000/g' $<.verilog
-	mkdir -p ../verilog
-	mv $<.verilog ../verilog/
-	@mkdir -p ../hex
+	mkdir -p $(verilog_dir)
+	mv $<.verilog $(verilog_dir)/
+	@mkdir -p $(hex_dir)
 	@base=$$(basename $< .elf); \
-	elf2hex 4 16384 $< > ../hex/$${base}.hex
+	elf2hex 4 16384 $< > $(hex_dir)/$${base}.hex
 # 	@rm -f $<.verilog
 
 
@@ -69,6 +74,7 @@ endef
 
 $(eval $(call compile_template,rv32ui,-march=rv32i_zicsr_zmmul -mabi=ilp32))
 $(eval $(call compile_template,rv32mi,-march=rv32i_zicsr_zmmul -mabi=ilp32))
+$(eval $(call compile_template,rv32si,-march=rv32i_zicsr_zmmul -mabi=ilp32))
 
 tests_dump = $(addsuffix .dump, $(tests))
 tests_hex = $(addsuffix .hex, $(tests))
@@ -89,6 +95,6 @@ all: $(tests_dump)
 
 clean:
 	rm -rf $(junk)
-	@if [ -d generated ]; then rm -rf generated/* generated/.[!.]* generated/..?* 2>/dev/null || true; fi
-	@if [ -d hex ]; then rm -rf hex/* hex/.[!.]* hex/..?* 2>/dev/null || true; fi
-	@if [ -d verilog ]; then rm -rf verilog/* verilog/.[!.]* verilog/..?* 2>/dev/null || true; fi
+	@for dir in "$(generated_dir)" "$(hex_dir)" "$(verilog_dir)"; do \
+		if [ -d "$$dir" ]; then rm -rf "$$dir"/* "$$dir"/.[!.]* "$$dir"/..?* 2>/dev/null || true; fi; \
+	done

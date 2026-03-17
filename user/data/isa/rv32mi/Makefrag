@@ -10,6 +10,12 @@ rv32mi_sc_tests = \
 	ma_fetch \
 	ma_addr \
 	shamt \
+	zicntr \
+	lh-misaligned \
+	lw-misaligned \
+	sh-misaligned \
+	sw-misaligned \
+	scall \
 
 rv32mi_p_tests = $(addprefix rv32mi-p-, $(rv32mi_sc_tests))
 
