@@ -78,22 +78,21 @@
 
 // verilog_format: off
 // ================== 指令集 定义 ==================
-    `define OPCODE_RTYPE        7'b0110011
-    `define OPCODE_ITYPE        7'b0010011
-    `define OPCODE_BTYPE        7'b1100011
 
-    `define OPCODE_JAL          7'b1101111
-    `define OPCODE_JALR         7'b1100111
-
-    `define OPCODE_STYPE        7'b0100011
-
-    `define OPCODE_AUIPC        7'b0010111
-    `define OPCODE_LUI          7'b0110111
-
-    `define OPCODE_LTYPE        7'b0000011
-    `define OPCODE_ZICSR        7'b1110011
-    `define OPCODE_FENCE        7'b0001111
-    `define OPCODE_ZERO         7'b0000000
+    typedef enum logic [6:0] {
+        OPCODE_RTYPE = 7'b0110011,
+        OPCODE_ITYPE = 7'b0010011,
+        OPCODE_BTYPE = 7'b1100011,
+        OPCODE_JAL   = 7'b1101111,
+        OPCODE_JALR  = 7'b1100111,
+        OPCODE_STYPE = 7'b0100011,
+        OPCODE_AUIPC = 7'b0010111,
+        OPCODE_LUI   = 7'b0110111,
+        OPCODE_LTYPE = 7'b0000011,
+        OPCODE_ZICSR = 7'b1110011,
+        OPCODE_FENCE = 7'b0001111,
+        OPCODE_ZERO  = 7'b0000000
+    } opcode_e;
 
 // ================== Funct3 定义 ==================
     `define FUNCT3_ADD_SUB_MUL  3'h0

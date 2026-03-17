@@ -130,7 +130,7 @@ typedef ee_u64 CORE_TICKS;
         MEM_STACK - to allocate the data block on the stack (NYI).
 */
 #ifndef MEM_METHOD
-    #define MEM_METHOD MEM_STATIC
+    #define MEM_METHOD MEM_STACK
 // #define MEM_METHOD MEM_MALLOC
 // #define MEM_METHOD MEM_STACK
 #endif

@@ -41,7 +41,7 @@ module Decoder (
     logic [6:0] funct7;
 
     always_comb begin
-        opcode = instr[6:0];
+        opcode = opcode_e'(instr[6:0]);
         funct3 = instr[14:12];
         funct7 = instr[31:25];
     end
@@ -53,16 +53,14 @@ module Decoder (
 
     // 内部乘法指令信号（用于wd_sel和rf_we判断）
     logic is_mul_internal;
-    assign is_mul_internal = (opcode == `OPCODE_RTYPE) && (funct7 == `FUNCT7_MUL) && is_mul_funct3;
+    assign is_mul_internal = (opcode == OPCODE_RTYPE) && (funct7 == `FUNCT7_MUL) && is_mul_funct3;
 
     // 跳转类型判断
-    // assign jump_type = (opcode == `OPCODE_JAL) ?
-    //     `JUMP_JAL : (opcode == `OPCODE_JALR) ? `JUMP_JALR : `JUMP_NOP;
     always_comb begin
         case (opcode)
-            `OPCODE_JAL:  jump_type = `JUMP_JAL;
-            `OPCODE_JALR: jump_type = `JUMP_JALR;
-            default:      jump_type = `JUMP_NOP;
+            OPCODE_JAL:  jump_type = `JUMP_JAL;
+            OPCODE_JALR: jump_type = `JUMP_JALR;
+            default:     jump_type = `JUMP_NOP;
         endcase
     end
 
@@ -71,47 +69,47 @@ module Decoder (
     // rs1：除了 LUI/AUIPC/JAL 之外都用到 (CSR immediate variants don't use rs1)
     // CSRRWI, CSRRSI, CSRRCI use zimm instead of rs1
     logic csr_use_imm;
-    assign csr_use_imm = (opcode == `OPCODE_ZICSR) &&
+    assign csr_use_imm = (opcode == OPCODE_ZICSR) &&
         (funct3[2] == 1'b1);  // funct3[2]=1 for immediate variants
 
     assign rs1_used =
-        ~((opcode == `OPCODE_LUI) || (opcode == `OPCODE_AUIPC) ||
-          (opcode == `OPCODE_JAL) || (opcode == `OPCODE_ZERO) || csr_use_imm ||
-          ((opcode == `OPCODE_ZICSR) && (funct3 == `FUNCT3_CALL)));  // ECALL/MRET don't use rs1
+        ~((opcode == OPCODE_LUI) || (opcode == OPCODE_AUIPC) || (opcode == OPCODE_JAL) ||
+          (opcode == OPCODE_ZERO) || csr_use_imm ||
+          ((opcode == OPCODE_ZICSR) && (funct3 == `FUNCT3_CALL)));  // ECALL/MRET don't use rs1
     // // rs2：只有 R-type / B-type / S-type 用到
-    assign rs2_used = (opcode == `OPCODE_RTYPE) || (opcode == `OPCODE_BTYPE) ||
-        (opcode == `OPCODE_STYPE);
+    assign
+        rs2_used = (opcode == OPCODE_RTYPE) || (opcode == OPCODE_BTYPE) || (opcode == OPCODE_STYPE);
 
 
     // [HACK] Icarus Verilog 不支持 inside 语法糖 :(
     // assign rs1_used = !(opcode inside {
-    //     `OPCODE_LUI,
-    //     `OPCODE_AUIPC,
-    //     `OPCODE_JAL
+    //     OPCODE_LUI,
+    //     OPCODE_AUIPC,
+    //     OPCODE_JAL
     // });
     // assign rs2_used = (opcode inside {
-    //     `OPCODE_RTYPE,
-    //     `OPCODE_BTYPE,
-    //     `OPCODE_STYPE
+    //     OPCODE_RTYPE,
+    //     OPCODE_BTYPE,
+    //     OPCODE_STYPE
     // });
 
 
     // ALU 第一操作数来源
     // 判断是否为 AUIPC 指令即可
-    assign is_auipc = (opcode == `OPCODE_AUIPC);
+    assign is_auipc = (opcode == OPCODE_AUIPC);
 
     // ALU 第二操作数来源
     // verilog_format:off
     always_comb begin : alu_src_selection
         unique case (opcode)
-            `OPCODE_RTYPE,
-            `OPCODE_BTYPE:  alu_src = `ALUSRC_RS2;  // 来自寄存器 rs2
+            OPCODE_RTYPE,
+            OPCODE_BTYPE:  alu_src = `ALUSRC_RS2;  // 来自寄存器 rs2
 
-            `OPCODE_ITYPE,
-            `OPCODE_LTYPE,
-            `OPCODE_STYPE,
-            `OPCODE_AUIPC,
-            `OPCODE_JALR:
+            OPCODE_ITYPE,
+            OPCODE_LTYPE,
+            OPCODE_STYPE,
+            OPCODE_AUIPC,
+            OPCODE_JALR:
                             alu_src = `ALUSRC_IMM;  // 来自立即数
 
             default:        alu_src = `ALUSRC_RS2;
@@ -127,18 +125,18 @@ module Decoder (
             wd_sel = `WD_SEL_FROM_MUL;
         end else begin
             unique case (opcode)
-                `OPCODE_RTYPE,
-                `OPCODE_ITYPE:  wd_sel = `WD_SEL_FROM_ALU;
+                OPCODE_RTYPE,
+                OPCODE_ITYPE:  wd_sel = `WD_SEL_FROM_ALU;
 
-                `OPCODE_LTYPE:  wd_sel = `WD_SEL_FROM_DRAM;
+                OPCODE_LTYPE:  wd_sel = `WD_SEL_FROM_DRAM;
 
-                `OPCODE_JAL,
-                `OPCODE_JALR:   wd_sel = `WD_SEL_FROM_PC4;
+                OPCODE_JAL,
+                OPCODE_JALR:   wd_sel = `WD_SEL_FROM_PC4;
 
-                `OPCODE_LUI,
-                `OPCODE_AUIPC:  wd_sel = `WD_SEL_FROM_IEXT;
+                OPCODE_LUI,
+                OPCODE_AUIPC:  wd_sel = `WD_SEL_FROM_IEXT;
 
-                `OPCODE_ZICSR:  wd_sel = (funct3 != `FUNCT3_CALL) ? `WD_SEL_FROM_CSR : 3'b0;
+                OPCODE_ZICSR:  wd_sel = (funct3 != `FUNCT3_CALL) ? `WD_SEL_FROM_CSR : 3'b0;
 
                 default:        wd_sel = 3'b0;
             endcase
@@ -155,19 +153,19 @@ module Decoder (
             rf_we = 1'b0;  // 乘法指令的写回由乘法器处理
         end else begin
             unique case (opcode)
-                `OPCODE_RTYPE,
-                `OPCODE_ITYPE,
-                `OPCODE_LTYPE,
-                `OPCODE_LUI,
-                `OPCODE_AUIPC,
-                `OPCODE_JAL,
-                `OPCODE_JALR:   rf_we = 1'b1;
+                OPCODE_RTYPE,
+                OPCODE_ITYPE,
+                OPCODE_LTYPE,
+                OPCODE_LUI,
+                OPCODE_AUIPC,
+                OPCODE_JAL,
+                OPCODE_JALR:   rf_we = 1'b1;
 
                 // CSR instructions write to rd (except ECALL/MRET which have funct3=0)
-                `OPCODE_ZICSR:  rf_we = (funct3 != `FUNCT3_CALL) && (instr[11:7] != 5'b0);
+                OPCODE_ZICSR:  rf_we = (funct3 != `FUNCT3_CALL) && (instr[11:7] != 5'b0);
 
-                `OPCODE_BTYPE,
-                `OPCODE_STYPE:  rf_we = 1'b0;
+                OPCODE_BTYPE,
+                OPCODE_STYPE:  rf_we = 1'b0;
 
                 default:        rf_we = 1'b0;  // 考虑异常情况 默认不写
             endcase
@@ -176,7 +174,7 @@ module Decoder (
     // verilog_format:on
 
     // 数据存储器写使能
-    assign dram_we = (opcode == `OPCODE_STYPE);
+    assign dram_we = (opcode == OPCODE_STYPE);
 
     // ALU 操作码生成
     // verilog_format:off
@@ -188,16 +186,16 @@ module Decoder (
 
         unique case (opcode)
 
-            `OPCODE_RTYPE, `OPCODE_ITYPE: begin
+            OPCODE_RTYPE, OPCODE_ITYPE: begin
                 unique case (funct3)
                     `FUNCT3_ADD_SUB_MUL:
                     // 使用 case-true 结构
                         case (1'b1)
-                            (opcode == `OPCODE_RTYPE) &&        // R-Type SUB
+                            (opcode == OPCODE_RTYPE) &&        // R-Type SUB
                             (funct7 == `FUNCT7_SUB):
                                             alu_op = `ALU_SUB;
 
-                            (opcode == `OPCODE_RTYPE):          // R-Type 其它（默认为 ADD）
+                            (opcode == OPCODE_RTYPE):          // R-Type 其它（默认为 ADD）
                                             alu_op = `ALU_ADD;
 
                             default:                            // 非 R-type（同样默认 ADD）
@@ -216,7 +214,7 @@ module Decoder (
                 endcase
             end
 
-            `OPCODE_BTYPE: begin
+            OPCODE_BTYPE: begin
                 alu_op = (funct3 == `FUNCT3_BLTU || funct3 == `FUNCT3_BGEU) ? `ALU_SLTU :
                     `ALU_SUB;  // 用于比较是否为有符号/无符号
                 // 判断分支类型
@@ -234,13 +232,13 @@ module Decoder (
 
             end
 
-            `OPCODE_JAL,
-            `OPCODE_LUI:            alu_op = `ALU_RIGHT;  // 特殊指令
+            OPCODE_JAL,
+            OPCODE_LUI:            alu_op = `ALU_RIGHT;  // 特殊指令
 
-            `OPCODE_JALR,
-            `OPCODE_AUIPC:          alu_op = `ALU_ADD;
+            OPCODE_JALR,
+            OPCODE_AUIPC:          alu_op = `ALU_ADD;
 
-            `OPCODE_LTYPE: begin
+            OPCODE_LTYPE: begin
                 unique case (funct3)
                     `FUNCT3_LB:     alu_op = `ALU_LB;
                     `FUNCT3_LBU:    alu_op = `ALU_LBU;
@@ -251,7 +249,7 @@ module Decoder (
                 endcase
             end
 
-            `OPCODE_STYPE: begin
+            OPCODE_STYPE: begin
                 unique case (funct3)
                     `FUNCT3_SB:     alu_op = `ALU_SB;
                     `FUNCT3_SH:     alu_op = `ALU_SH;
@@ -269,7 +267,7 @@ module Decoder (
     // verilog_format:off
     always_comb begin : sl_selection
         unique case (opcode)
-            `OPCODE_LTYPE: begin
+            OPCODE_LTYPE: begin
                 case (funct3)
                     `FUNCT3_LB:     sl_type = `MEM_LB;
                     `FUNCT3_LBU:    sl_type = `MEM_LBU;
@@ -280,7 +278,7 @@ module Decoder (
                 endcase
             end
 
-            `OPCODE_STYPE:begin
+            OPCODE_STYPE:begin
                 case (funct3)
                     `FUNCT3_SB:     sl_type = `MEM_SB;
                     `FUNCT3_SH:     sl_type = `MEM_SH;
@@ -313,7 +311,7 @@ module Decoder (
         csr_addr = instr[31:20];
         csr_op   = funct3;
 
-        if (opcode == `OPCODE_ZICSR) begin
+        if (opcode == OPCODE_ZICSR) begin
             if (funct3 == `FUNCT3_CALL) begin
                 // ECALL: instr = 0x00000073
                 // MRET:  instr = 0x30200073
@@ -342,38 +340,38 @@ module Decoder (
         is_illegal_instr = 1'b0;
 
         case (opcode)
-            `OPCODE_LUI,
-            `OPCODE_AUIPC,
-            `OPCODE_JAL: begin
+            OPCODE_LUI,
+            OPCODE_AUIPC,
+            OPCODE_JAL: begin
                 // U-type 和 J-type 指令无需额外检查
                 is_illegal_instr = 1'b0;
             end
 
-            `OPCODE_JALR: begin
+            OPCODE_JALR: begin
                 // JALR 只有 funct3=000 是合法的
                 is_illegal_instr = (funct3 != 3'b000);
             end
 
-            `OPCODE_BTYPE: begin
+            OPCODE_BTYPE: begin
                 // B-type: funct3 只有 000,001,100,101,110,111 是合法的
                 // 010 和 011 是非法的
                 is_illegal_instr = (funct3 == 3'b010) || (funct3 == 3'b011);
             end
 
-            `OPCODE_LTYPE: begin
+            OPCODE_LTYPE: begin
                 // Load: funct3 000,001,010,100,101 are valid (LB,LH,LW,LBU,LHU)
                 // 011,110,111 are invalid
                 is_illegal_instr = (funct3 == 3'b011) || (funct3 == 3'b110) || (funct3 == 3'b111);
             end
 
-            `OPCODE_STYPE: begin
+            OPCODE_STYPE: begin
                 // Store: funct3 000,001,010 are valid (SB,SH,SW)
                 // 011,100,101,110,111 are invalid
                 is_illegal_instr = (funct3 == 3'b011) || (funct3 == 3'b100) || 
                                    (funct3 == 3'b101) || (funct3 == 3'b110) || (funct3 == 3'b111);
             end
 
-            `OPCODE_ITYPE: begin
+            OPCODE_ITYPE: begin
                 // I-type arithmetic instructions
                 case (funct3)
                     `FUNCT3_ADD_SUB_MUL,  // ADDI
@@ -400,7 +398,7 @@ module Decoder (
                 endcase
             end
 
-            `OPCODE_RTYPE: begin
+            OPCODE_RTYPE: begin
                 // R-type 算术指令
                 if (funct7 == `FUNCT7_MUL) begin
                     // M扩展乘法指令，检查funct3
@@ -438,7 +436,7 @@ module Decoder (
                 end
             end
 
-            `OPCODE_ZICSR: begin
+            OPCODE_ZICSR: begin
                 // CSR and system instructions
                 if (funct3 == `FUNCT3_CALL) begin
                     // ECALL: instr = 0x00000073
@@ -456,12 +454,12 @@ module Decoder (
                 end
             end
 
-            `OPCODE_FENCE: begin
+            OPCODE_FENCE: begin
                 // FENCE 指令是合法的 (作为 NOP 处理)
                 is_illegal_instr = 1'b0;
             end
 
-            `OPCODE_ZERO: begin
+            OPCODE_ZERO: begin
                 // 全零指令是非法的
                 is_illegal_instr = 1'b1;
             end
@@ -495,12 +493,12 @@ module Decoder (
     endcase
     // 判断当前具体为32条基本指令的哪一条
     unique case (opcode)
-      `OPCODE_LUI:              instr_ascii = "LUI";
-      `OPCODE_AUIPC:            instr_ascii = "AUIPC";
-      `OPCODE_JAL:              instr_ascii = "JAL";
-      `OPCODE_JALR:             instr_ascii = "JALR";
+      OPCODE_LUI:              instr_ascii = "LUI";
+      OPCODE_AUIPC:            instr_ascii = "AUIPC";
+      OPCODE_JAL:              instr_ascii = "JAL";
+      OPCODE_JALR:             instr_ascii = "JALR";
 
-      `OPCODE_BTYPE: begin
+      OPCODE_BTYPE: begin
         unique case (funct3)
           `FUNCT3_BEQ:          instr_ascii = "BEQ";
           `FUNCT3_BNE:          instr_ascii = "BNE";
@@ -512,7 +510,7 @@ module Decoder (
         endcase
       end
 
-      `OPCODE_LTYPE: begin
+      OPCODE_LTYPE: begin
         unique case (funct3)
           `FUNCT3_LB:           instr_ascii = "LB";
           `FUNCT3_LH:           instr_ascii = "LH";
@@ -523,7 +521,7 @@ module Decoder (
         endcase
       end
 
-      `OPCODE_STYPE: begin
+      OPCODE_STYPE: begin
         unique case (funct3)
           `FUNCT3_SB:           instr_ascii = "SB";
           `FUNCT3_SH:           instr_ascii = "SH";
@@ -532,7 +530,7 @@ module Decoder (
         endcase
       end
 
-      `OPCODE_ITYPE: begin
+      OPCODE_ITYPE: begin
         if (instr == 32'h13) begin
                                   instr_ascii = "NOP";
         end else begin
@@ -550,7 +548,7 @@ module Decoder (
         end
       end
 
-      `OPCODE_RTYPE: begin
+      OPCODE_RTYPE: begin
         unique case (funct3)
           `FUNCT3_ADD_SUB_MUL: begin
             if (funct7 == `FUNCT7_SUB)
@@ -576,7 +574,7 @@ module Decoder (
         endcase
       end
 
-      `OPCODE_ZICSR: begin
+      OPCODE_ZICSR: begin
         unique case (funct3)
           `FUNCT3_CSRRW:        instr_ascii = "CSRRW";
           `FUNCT3_CSRRS:        instr_ascii = "CSRRS";

@@ -54,7 +54,8 @@ static inline ee_u64 read_mcycle64(void)
     ee_u32 hi1, lo, hi2;
     /* Atomic read sequence: read high, low, high again.
      * If high changed, low overflowed, so retry. */
-    do {
+    do
+    {
         __asm__ volatile("csrr %0, mcycleh" : "=r"(hi1));
         __asm__ volatile("csrr %0, mcycle" : "=r"(lo));
         __asm__ volatile("csrr %0, mcycleh" : "=r"(hi2));
@@ -87,7 +88,7 @@ barebones_clock()
  * For real hardware, set this to your actual CPU frequency in Hz
  */
 #ifndef CLOCKS_PER_SEC
-    #define CLOCKS_PER_SEC 20000
+    #define CLOCKS_PER_SEC 500000
 #endif
 #define GETMYTIME(_t)              (*_t = barebones_clock())
 #define MYTIMEDIFF(fin, ini)       ((fin) - (ini))
@@ -149,7 +150,7 @@ time_in_secs(CORE_TICKS ticks)
 {
     /* Perform 64-bit division, then cast result to secs_ret (ee_u32).
      * Since seconds is a small number, 32-bit result is sufficient. */
-    ee_u64 secs_64 = ticks / (ee_u64)EE_TICKS_PER_SEC;
+    ee_u64 secs_64  = ticks / (ee_u64)EE_TICKS_PER_SEC;
     secs_ret retval = (secs_ret)secs_64;
     return retval;
 }

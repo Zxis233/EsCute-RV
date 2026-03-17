@@ -41,6 +41,21 @@ static void exit_sim(ee_u32 code)
         Returns:
         NULL.
 */
+
+static inline ee_u64 read_mcycle64(void)
+{
+    ee_u32 hi1, lo, hi2;
+    /* Atomic read sequence: read high, low, high again.
+     * If high changed, low overflowed, so retry. */
+    do
+    {
+        __asm__ volatile("csrr %0, mcycleh" : "=r"(hi1));
+        __asm__ volatile("csrr %0, mcycle" : "=r"(lo));
+        __asm__ volatile("csrr %0, mcycleh" : "=r"(hi2));
+    } while (hi1 != hi2);
+    return ((ee_u64)hi1 << 32) | (ee_u64)lo;
+}
+
 static ee_u16 list_known_crc[]   = {(ee_u16)0xd4b0,
                                     (ee_u16)0x3340,
                                     (ee_u16)0x6a79,
@@ -127,6 +142,9 @@ main(void)
     register ee_u32 sp asm("sp");
     ee_printf("\n_end=0x%08x stack_top=0x%08x sp=0x%08x\n",
               &_end, &_stack_top, sp);
+    ee_u64 first_time;
+    first_time = read_mcycle64();
+    ee_printf("Now Time: 0x%08x\n", first_time);
 #else
 MAIN_RETURN_TYPE
 main(int argc, char* argv[])
@@ -417,6 +435,8 @@ for (i = 0; i < MULTITHREAD; i++)
         ee_printf(
             "Correct operation validated. See README.md for run and reporting "
             "rules.\n");
+        first_time = read_mcycle64();
+        ee_printf("Now Time: 0x%08x\n", first_time);
 #if HAS_FLOAT
         if (known_id == 3)
         {
