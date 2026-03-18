@@ -225,7 +225,7 @@ regress: regress_prepare regress_clear regress_run regress_collect
 clean:
 	@echo "清理生成文件..."
 	@rm -rf ${RUN_DIR}
-	@rm -f *.vvp *.vcd *.log
+	@rm -f *.vvp *.vcd
 	@echo "清理完成!"
 
 # ========================================

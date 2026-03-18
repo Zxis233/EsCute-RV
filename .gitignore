@@ -29,3 +29,5 @@ coremark/escute/*.hex
 coremark/escute/*.o
 
 *.zip
+
+!user/data/c

@@ -21,7 +21,7 @@
 - `SSAMOSWAP.*` 尚未实现
 - shadow stack 目前复用了普通 DRAM 路径，只实现了按字对齐检查与基本 fault 行为
 
-关于 Zicfiss / Zicfilp 的详细实现分析、源码跳转和波形观察点，见 [cfi.md](cfi.md)。
+关于 Zicfiss / Zicfilp 的详细实现分析、源码跳转和波形观察点，见 [CFI_Instruction.md](CFI_Instruction.md)。
 
 
 ## 目录层级
@@ -30,7 +30,7 @@
 EsCute-RV
 ├── .vscode
 │  └── property.json            # DIDE配置文件
-├── cfi.md                      # Zicfiss / Zicfilp 实现说明
+├── CFI_Instruction.md          # Zicfiss / Zicfilp 实现说明
 ├── filelist.f                  # 工程文件列表
 ├── README.md                   # 项目说明文件
 ├── Makefile                    # 自动化测试用 Makefile 文件   
@@ -115,11 +115,12 @@ EsCute-RV
 - `LPAD` 或 `SSPOPCHK` 失败时，会上报 `software-check` 异常
 
 建议阅读顺序：
-1. [cfi.md](cfi.md)
+1. [CFI_Instruction](CFI_Instruction.md)
 2. [Decoder.sv](user/src/Decoder.sv)
 3. [CPU_TOP.sv](user/src/CPU_TOP.sv)
 4. [CSR.sv](user/src/CSR.sv)
 5. [zicfi.S](user/data/isa/rv32mi/zicfi.S) 和 [tb_Zicfi.sv](user/sim/tb_Zicfi.sv)
+6. [zicfi_rv32_test.S](user/data/asm/zicfi_rv32_test.S)
 
 ### Zicfi 测试入口
 
@@ -142,11 +143,12 @@ vvp prj/run/tb_zicfi.vvp
 ```
 2K performance run parameters for coremark.
 CoreMark Size    : 666
-Total ticks      : 4598265
-Total time (secs): 229
-Iterations/Sec   : 0
+Total ticks      : 4597388
+Total time (secs): 9
+Iterations/Sec   : 1
+ERROR! Must execute for at least 10 secs for a valid result!
 Iterations       : 10
-Compiler version : GCC15.1.0
+Compiler version : GCC15.2.0
 Compiler flags   : -O2 -g -DPERFORMANCE_RUN=1  
 Memory location  : STACK
 seedcrc          : 0xe9f5
@@ -155,7 +157,8 @@ seedcrc          : 0xe9f5
 [0]crcstate      : 0x8e3a
 [0]crcfinal      : 0xfcaf
 Correct operation validated. See README.md for run and reporting rules.
-46317325000| [PASS] |  Finished  
+Now Time: 0xfffffffc
+46306035000| [PASS] |  Finished
 ```
 
 

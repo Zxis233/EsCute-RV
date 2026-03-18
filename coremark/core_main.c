@@ -316,11 +316,11 @@ for (i = 0; i < MULTITHREAD; i++)
     total_time = get_time();
     /* get a function of the input to report */
     seedcrc = crc16(results[0].seed1, seedcrc);
-    ee_printf("");
+    // ee_printf("");
     seedcrc = crc16(results[0].seed2, seedcrc);
-    ee_printf("");
+    // ee_printf("");
     seedcrc = crc16(results[0].seed3, seedcrc);
-    ee_printf("");
+    // ee_printf("");
     seedcrc = crc16(results[0].size,  seedcrc);
     // ee_printf("CRC_Result4 is 0x%04x\n", seedcrc);
     // ee_printf("");

@@ -478,6 +478,7 @@ module CPU_TOP (
     logic [31:0] branch_target_normal;
     logic [31:0] instr_target_EX;
     logic branch_jal_target_misaligned_EX;
+    logic take_branch_normal;
     assign jalr_target_EX = {alu_result_EX[31:1], 1'b0};  // JALR target after masking bit 0
     assign branch_jal_target_misaligned_EX = take_branch_normal &&
                                              (jump_type_EX != `JUMP_JALR) &&
@@ -510,7 +511,6 @@ module CPU_TOP (
 
     // EX级异常 (不包括非法指令，非法指令在ID级处理)
     logic exception_valid_EX;
-    logic take_branch_normal;
     assign shadow_access_fault_EX = shadow_mem_active_EX && (shadow_addr_EX[1:0] != 2'b00);
     assign exception_valid_EX = (instr_misaligned_EX || load_misaligned_EX ||
                                  store_misaligned_EX || shadow_access_fault_EX ||
@@ -887,29 +887,42 @@ module CPU_TOP (
         .mul_cancel_rd     (mul_cancel_rd)
     );
 
+    logic [1:0] check_csr_ID, check_csr_EX;
+    assign check_csr_ID = $countones({is_csr_instr_ID,is_ecall_ID, is_mret_ID, is_sret_ID});
+    assign check_csr_EX = $countones({is_csr_instr_EX,is_ecall_EX, is_mret_EX, is_sret_EX});
 
     always_ff @(posedge clk) begin
         if (rst_n) begin
+
             // load: 读内存/写寄存器 不写内存
             if (alu_op_ID == `ALU_LW || alu_op_ID == `ALU_LH || alu_op_ID == `ALU_LB ||
                 alu_op_ID == `ALU_LHU || alu_op_ID == `ALU_LBU) begin
                 assert (!dram_we_ID && rf_we_ID)
                 else $error("[FATAL] LOAD INCONSISTENT");
             end
+
             // store: 写内存 不写寄存器
             if (alu_op_ID == `ALU_SW || alu_op_ID == `ALU_SH || alu_op_ID == `ALU_SB) begin
                 assert (dram_we_ID && !rf_we_ID)
                 else $error("[FATAL] STORE INCONSISTENT");
             end
+
             // branch: 不读/写内存
             if (is_branch_instr_ID) begin
                 assert (!dram_we_ID && !rf_we_ID)
                 else $error("[FATAL] BRANCH INCONSISTENT");
             end
+
             // ALU_OP 不应为X
             assert (alu_op_ID[0] !== 1'bx && alu_op_ID[1] !== 1'bx && alu_op_ID[2] !== 1'bx &&
                     alu_op_ID[3] !== 1'bx && alu_op_ID[4] !== 1'bx)
             else $error("[FATAL] ALU_OP X detected in ID stage");
+
+            // is_ecall/is_mret/is_sret同一时间只能有一个为1
+            assert (check_csr_ID < 2'd2)
+            else $error("[FATAL] ECALL/MRET/SRET conflict in ID stage");
+            assert (check_csr_EX < 2'd2)
+            else $error("[FATAL] ECALL/MRET/SRET conflict in EX stage");
         end
     end
 

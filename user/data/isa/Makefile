@@ -72,9 +72,9 @@ endif
 
 endef
 
-$(eval $(call compile_template,rv32ui,-march=rv32i_zicsr_zmmul_zicfiss_zicfilp -mabi=ilp32))
-$(eval $(call compile_template,rv32mi,-march=rv32i_zicsr_zmmul_zicfiss_zicfilp -mabi=ilp32))
-$(eval $(call compile_template,rv32si,-march=rv32i_zicsr_zmmul_zicfiss_zicfilp -mabi=ilp32))
+$(eval $(call compile_template,rv32ui,-march=rv32i_zicsr_zmmul_zicfiss_zicfilp -mabi=ilp32 -fcf-protection=full -fno-inline -fno-optimize-sibling-calls))
+$(eval $(call compile_template,rv32mi,-march=rv32i_zicsr_zmmul_zicfiss_zicfilp -mabi=ilp32 -fcf-protection=full -fno-inline -fno-optimize-sibling-calls))
+$(eval $(call compile_template,rv32si,-march=rv32i_zicsr_zmmul_zicfiss_zicfilp -mabi=ilp32 -fcf-protection=full -fno-inline -fno-optimize-sibling-calls))
 
 tests_dump = $(addsuffix .dump, $(tests))
 tests_hex = $(addsuffix .hex, $(tests))

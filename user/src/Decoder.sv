@@ -63,8 +63,8 @@ module Decoder (
     assign is_sspush_internal = ((instr & `MASK_SSPUSH) == `MATCH_SSPUSH);
     assign is_ssrdp_encoding = ((instr & `MASK_SSRDP) == `MATCH_SSRDP);
     assign is_ssrdp_internal = is_ssrdp_encoding && (instr[11:7] != 5'd0);
-    assign is_sspopchk_internal = !is_ssrdp_encoding &&
-                                  ((instr & `MASK_SSPOPCHK) == `MATCH_SSPOPCHK);
+    assign
+        is_sspopchk_internal = !is_ssrdp_encoding && ((instr & `MASK_SSPOPCHK) == `MATCH_SSPOPCHK);
     assign is_lpad_instr = is_lpad_internal;
 
     // 内部乘法指令信号（用于wd_sel和rf_we判断）
@@ -88,14 +88,14 @@ module Decoder (
     assign csr_use_imm = (opcode == OPCODE_ZICSR) &&
         (funct3[2] == 1'b1);  // funct3[2]=1 for immediate variants
 
-    assign rs1_used = is_sspopchk_internal ? 1'b1 :
-        (is_lpad_internal || is_sspush_internal || is_ssrdp_encoding) ? 1'b0 :
+    assign rs1_used = is_sspopchk_internal ?
+        1'b1 : (is_lpad_internal || is_sspush_internal || is_ssrdp_encoding) ? 1'b0 :
         ~((opcode == OPCODE_LUI) || (opcode == OPCODE_AUIPC) || (opcode == OPCODE_JAL) ||
-          (opcode == OPCODE_ZERO) || csr_use_imm ||
-          ((opcode == OPCODE_ZICSR) && (funct3 == `FUNCT3_CALL)));  // ECALL/MRET/SRET don't use rs1
+          (opcode == OPCODE_ZERO) || csr_use_imm || (
+          (opcode == OPCODE_ZICSR) && (funct3 == `FUNCT3_CALL)));  // ECALL/MRET/SRET don't use rs1
     // SSPUSH consumes the GPR encoded in bits [24:20], i.e. the rs2 slot.
-    assign rs2_used = is_sspush_internal ||
-        (opcode == OPCODE_RTYPE) || (opcode == OPCODE_BTYPE) || (opcode == OPCODE_STYPE);
+    assign rs2_used = is_sspush_internal || (opcode == OPCODE_RTYPE) || (opcode == OPCODE_BTYPE) ||
+        (opcode == OPCODE_STYPE);
 
 
     // [HACK] Icarus Verilog 不支持 inside 语法糖 :(
