@@ -668,13 +668,22 @@ module CPU_TOP (
         end
     end
 
+    logic [31:0] shadow_operand_EX;
+    always_comb begin
+        unique case (sl_type_EX)
+            `MEM_SSPUSH:   shadow_operand_EX = rf_rd2_EX;
+            `MEM_SSPOPCHK: shadow_operand_EX = rf_rd1_EX;
+            default:       shadow_operand_EX = 32'b0;
+        endcase
+    end
+
     // 回写数据来源选择MUX
     // 在EX级完成选择以减少流水线寄存器宽度
     // 注意 load 指令的数据在 MEM 级才可用 因此不可能选择 DRAM 作为回写数据来源
     always_comb begin : wd_EX_MUX
         if (shadow_mem_active_EX &&
             ((sl_type_EX == `MEM_SSPUSH) || (sl_type_EX == `MEM_SSPOPCHK))) begin
-            rf_wd_EX = rf_rd1_EX;
+            rf_wd_EX = shadow_operand_EX;
         end else begin
             case (wd_sel_EX)
                 `WD_SEL_FROM_ALU:  rf_wd_EX = alu_result_EX;

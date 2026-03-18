@@ -10,7 +10,7 @@ module tb_Zicfi;
     logic [31:0] instr_data;
     logic        saw_exception;
 
-    logic [31:0] rom           [0:255];
+    logic [31:0] rom           [256];
 
     CPU_TOP u_CPU_TOP (
         .clk  (clk),
@@ -45,7 +45,7 @@ module tb_Zicfi;
 
         // S-mode body @ 0x34
         rom[13] = 32'hcdc01573;  // ssrdp x10
-        rom[14] = 32'hce809073;  // sspush x1
+        rom[14] = 32'hce104073;  // sspush x1
         rom[15] = 32'hcdc015f3;  // ssrdp x11
         rom[16] = 32'hcdc0c073;  // sspopchk x1
         rom[17] = 32'hcdc01673;  // ssrdp x12

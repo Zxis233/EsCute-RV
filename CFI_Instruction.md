@@ -183,7 +183,7 @@
 - EX/MEM 流水线保存的地址也被替换成这个 shadow 地址。
 - 到 MEM 级，`StoreUnit` 把它当成整字写（`wstrb=1111`），见 [StoreUnit.sv](user/src/StoreUnit.sv) `L19-L23`。
 
-而真正被写进 shadow stack 的数据，不是常规 store 的 `rs2`，而是当前实现里从 `rs1` 送下来的被保护值，见 [CPU_TOP.sv](user/src/CPU_TOP.sv) `L675-L689` 和 [CPU_TOP.sv](user/src/CPU_TOP.sv) `L734-L740`。
+而真正被写进 shadow stack 的数据，来自 `SSPUSH` 指令编码里 `bits[24:20]` 那个源寄存器槽，也就是当前实现里的 `rs2` 路径，见 [Decoder.sv](user/src/Decoder.sv) 和 [CPU_TOP.sv](user/src/CPU_TOP.sv)。
 
 要点是：
 - `SSPUSH` 不只是“写内存”
@@ -228,6 +228,49 @@
 这表示当前实现选择了“简单而稳”的策略：
 - shadow stack 指令不和普通流水线深度重叠优化
 - 而是显式串行化，优先保证状态一致性
+
+### 4.7 `shadow_serialize` 与 trap redirect 的优先级
+
+这一节是后来在裸机程序 [zicfi_rv32_test.S](user/data/asm/zicfi_rv32_test.S) 里实际踩出来的问题。
+
+先看两条独立成立的控制链：
+- 在 [HazardUnit.sv](user/src/HazardUnit.sv) `L191-L201`，只要 `shadow_serialize_EX/MEM/WB` 有一拍为 1，就会并入 `any_hazard`，从而拉高 `keep_pc`、`stall_IF_ID`、`flush_ID_EX`。
+- 在 [CPU_TOP.sv](user/src/CPU_TOP.sv) `L657-L669`，只要 `exception_valid=1`，就会把 `take_branch_NextPC` 置 1，并把 `branch_target_NextPC` 指向 `trap_target`。也就是说，异常本身已经要求前端立刻重定向到 trap vector。
+
+真正的关键不在这两条链本身，而在 [PC.sv](user/src/PC.sv) 怎么处理“保持 PC”与“重定向 PC”的优先级。
+
+这次暴露 bug 的场景是：
+- U-mode 非对齐 `SSPUSH` 在 `0x364` 触发 `shadow_access_fault_EX`
+- CSR 已经正确写入 `scause=7`、`sepc=0x364`，并把 `priv_mode` 切到 S
+- 但如果 PC 的时序逻辑先判断 `keep_pc`，再判断 `branch_op`，那么 `shadow_serialize_EX` 带来的 hold 会把 trap redirect 挡住
+- 结果前端不会跳去 `0x3ec <s_trap_vector>`，而是错误地继续取顺序地址 `0x368`
+
+这个现象在波形里会表现成一种很容易误判的状态：
+- 你已经看到 `exception_cause=7`
+- `priv_mode` 也已经变成了 S
+- 但 `pc_IF` / `pc_ID` 还在执行 U 段的后续指令
+
+继续跑下去，就会出现二次偏差：
+- 程序从 `0x368` 继续执行，进入 `u_after_sspush_fault`
+- 后面的 `0x394 ecall` 本来应该是 U-mode ecall
+- 但因为特权级已经在前一个 trap 入口时切成了 S，所以这条 `ecall` 实际会被当成 S-mode ecall
+- 最后程序不会去 [done](user/data/asm/zicfi_rv32_test.S) 对应的 `0x4b0`，而是掉进 [unexpected_trap](user/data/asm/zicfi_rv32_test.S) 对应的 `0x498`
+
+修复方法很直接：
+- 在 [PC.sv](user/src/PC.sv) 里让 `branch_op` 的优先级高于 `keep_pc`
+- 也就是 trap / xRET / branch 的重定向，必须先于流水线保持生效
+
+修完之后，这条链路就变成了正确行为：
+- `0x364` 的非对齐 `SSPUSH` 仍然产生 `cause=7`
+- 但下一次前端取指会去 `0x3ec`
+- `s_trap_vector` 再把 `sepc` 改到 `0x368`
+- `sret` 返回后才从 `0x368` 继续执行
+- 最后 `0x394 ecall` 也会按预期作为 U-mode ecall 进入 S trap，并在 `0x398` 续跑，最终停在 `0x4b0 <done>`
+
+如果你以后在波形里怀疑“trap 明明发生了，但 PC 没跳”，最值得先对照的不是 CSR，而是这三组信号：
+- [CPU_TOP.sv](user/src/CPU_TOP.sv) `exception_valid`、`take_branch_NextPC`、`branch_target_NextPC`
+- [HazardUnit.sv](user/src/HazardUnit.sv) `keep_pc`
+- [PC.sv](user/src/PC.sv) `branch_op` 与 `pc_if`
 
 ## 5. CSR 状态机是怎么把两类扩展接起来的
 

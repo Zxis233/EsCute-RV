@@ -286,7 +286,7 @@
     `define MATCH_LPAD         32'h0000_0017
     `define  MASK_LPAD         32'h0000_0FFF
     `define MATCH_SSPUSH       32'hCE00_4073
-    `define  MASK_SSPUSH       32'hFE0F_7FFF
+    `define MASK_SSPUSH        32'hFE0F_FFFF
     `define MATCH_SSPOPCHK     32'hCDC0_4073
     `define  MASK_SSPOPCHK     32'hFFF0_7FFF
     `define MATCH_SSRDP        32'hCDC0_4073

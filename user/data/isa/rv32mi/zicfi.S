@@ -21,10 +21,10 @@
 #define LPAD_TAG_IMM   0x000ab
 
 #define INSN_LPAD_TAG      ((LPAD_TAG_IMM << 12) | 0x00000017)
-#define INSN_SSRDP_A0      0xcdc01573
-#define INSN_SSRDP_A1      0xcdc015f3
-#define INSN_SSRDP_A2      0xcdc01673
-#define INSN_SSPUSH_RA     0xce809073
+#define INSN_SSRDP_A0      0xcdc04573
+#define INSN_SSRDP_A1      0xcdc045f3
+#define INSN_SSRDP_A2      0xcdc04673
+#define INSN_SSPUSH_RA     0xce104073
 #define INSN_SSPOPCHK_RA   0xcdc0c073
 
 #define CSR_SSP ssp

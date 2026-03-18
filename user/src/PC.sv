@@ -21,9 +21,16 @@ module PC (
     end
 
     always_ff @(posedge clk or negedge rst_n) begin
-        if (!rst_n)       pc_if <= `INITIAL_PC;
-        else if (keep_pc) pc_if <= pc_if;
-        else              pc_if <= npc;
+        if (!rst_n) begin
+            pc_if <= `INITIAL_PC;
+        end else if (branch_op) begin
+            // Trap/xRET/branch redirect must beat pipeline holds.
+            pc_if <= branch_target;
+        end else if (keep_pc) begin
+            pc_if <= pc_if;
+        end else begin
+            pc_if <= npc;
+        end
     end
 
 endmodule
