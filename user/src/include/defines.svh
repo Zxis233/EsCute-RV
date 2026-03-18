@@ -148,6 +148,7 @@
     `define WD_SEL_FROM_IEXT    3'd3
     `define WD_SEL_FROM_MUL     3'd4
     `define WD_SEL_FROM_CSR     3'd5   // 写回来自CSR
+    `define WD_SEL_FROM_SSP     3'd6   // 写回来自 shadow stack pointer
 
 // ================== ALUsrc 定义 ==================
     `define ALUSRC_RS2          1'b0
@@ -214,11 +215,15 @@
     `define MEM_SB              4'b10_01
     `define MEM_SH              4'b10_10
     `define MEM_SW              4'b10_11
+    `define MEM_SSPUSH          4'b11_00
+    `define MEM_SSPOPCHK        4'b11_01
 
 // ================== CSR    定义 ==================
+    `define CSR_SSP            12'h011
     `define CSR_SSTATUS        12'h100
     `define CSR_SIE            12'h104
     `define CSR_STVEC          12'h105
+    `define CSR_SENVCFG        12'h10A
     `define CSR_SSCRATCH       12'h140
     `define CSR_SEPC           12'h141
     `define CSR_SCAUSE         12'h142
@@ -229,6 +234,7 @@
     `define CSR_MEDELEG        12'h302
     `define CSR_MIDELEG        12'h303
     `define CSR_MTVEC          12'h305
+    `define CSR_MSTATUSH       12'h310
     `define CSR_MEPC           12'h341
     `define CSR_MCAUSE         12'h342
     `define CSR_MIE            12'h304
@@ -238,10 +244,12 @@
     `define CSR_INSTRET        12'hC02
     `define CSR_INSTRETH       12'hC82
     `define CSR_MISA           12'h301
+    `define CSR_MENVCFG        12'h30A
     `define CSR_MSCRATCH       12'h340
     `define CSR_MTVAL          12'h343
     `define CSR_MCYCLE         12'hB00
     `define CSR_MCYCLEH        12'hB80
+    `define CSR_MSECCFG        12'h747
 
 // ================== F3-CSR 定义 ==================
     `define FUNCT3_CSRRC        3'h3
@@ -262,10 +270,33 @@
     `define EXC_ILLEGAL_INSTR   32'd2
     `define EXC_BREAKPOINT      32'd3
     `define EXC_LOAD_MISALIGNED 32'd4
+    `define EXC_LOAD_ACCESS_FAULT 32'd5
     `define EXC_STORE_MISALIGNED 32'd6
+    `define EXC_STORE_ACCESS_FAULT 32'd7
     `define EXC_ECALL_U         32'd8
     `define EXC_ECALL_S         32'd9
     `define EXC_ECALL_M         32'd11
+    `define EXC_SOFTWARE_CHECK  32'd18
+
+// ================== Software-Check 定义 ==================
+    `define SOFTCHK_LPAD_FAULT        32'd2
+    `define SOFTCHK_SHADOW_STACK_FAULT 32'd3
+
+// ================== Zicfilp/Zicfiss 定义 ==================
+    `define MATCH_LPAD         32'h0000_0017
+    `define  MASK_LPAD         32'h0000_0FFF
+    `define MATCH_SSPUSH       32'hCE00_4073
+    `define  MASK_SSPUSH       32'hFE0F_7FFF
+    `define MATCH_SSPOPCHK     32'hCDC0_4073
+    `define  MASK_SSPOPCHK     32'hFFF0_7FFF
+    `define MATCH_SSRDP        32'hCDC0_4073
+    `define MASK_SSRDP         32'hFFFF_F07F
+
+    `define ENVCFG_LPE_BIT     2
+    `define ENVCFG_SSE_BIT     3
+    `define MSECCFG_MLPE_BIT   10
+    `define MSTATUS_SPELP_BIT  23
+    `define MSTATUSH_MPELP_BIT 9
 
 //verilog_format: on
 

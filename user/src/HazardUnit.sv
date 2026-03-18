@@ -36,6 +36,10 @@ module HazardUnit (
     // ID级目的寄存器地址和写使能 (用于WAW冒险检测)
     input  logic [ 4:0]      wR_ID,               // ID级目的寄存器地址
     input  logic             rf_we_ID,            // ID级寄存器写使能
+    // Shadow stack 指令串行化
+    input  logic             shadow_serialize_EX,
+    input  logic             shadow_serialize_MEM,
+    input  logic             shadow_serialize_WB,
     // PC保持信号
     output logic             keep_pc,
     // IF/ID停顿信号
@@ -185,7 +189,10 @@ module HazardUnit (
     // 流水线冲刷与停顿
     // ------------------------------------------------------------
     logic any_hazard;
-    assign any_hazard = load_use_hazard || mul_use_hazard || mul_struct_hazard || mul_waw_hazard;
+    logic shadow_serialize_hazard;
+    assign shadow_serialize_hazard = shadow_serialize_EX || shadow_serialize_MEM || shadow_serialize_WB;
+    assign any_hazard = load_use_hazard || mul_use_hazard || mul_struct_hazard || mul_waw_hazard ||
+                        shadow_serialize_hazard;
 
     always_comb begin
         keep_pc     = any_hazard;

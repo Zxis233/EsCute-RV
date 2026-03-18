@@ -10,6 +10,7 @@ rv32mi_sc_tests = \
 	ma_fetch \
 	ma_addr \
 	shamt \
+	zicfi \
 	zicntr \
 	lh-misaligned \
 	lw-misaligned \

@@ -4,6 +4,7 @@
 `define DEBUG 
 
 `define REG_FILE u_CPU_TOP.u_registerf
+`define CSR_FILE u_CPU_TOP.u_CSR
 // verilog_format: off
 module test_tb;
 
@@ -13,6 +14,8 @@ module test_tb;
 
     // IROM 信号
     logic [13:0] irom_addr;
+    logic [15:0] irom_addr_4;
+    assign irom_addr_4 = irom_addr << 2;
     logic [31:0] irom_data;
 
 // 实例化 IROM (指令存储器)
@@ -32,10 +35,37 @@ module test_tb;
     );
 
 // 寄存器堆监控信号
+    logic [1:0] priv_lvl;
+
     logic [31:0] x0,  x1,  x2,  x3,  x4,  x5,  x6,  x7,
                  x8,  x9,  x10, x11, x12, x13, x14, x15,
                  x16, x17, x18, x19, x20, x21, x22, x23,
                  x24, x25, x26, x27, x28, x29, x30, x31;
+    // 机器级 CSR
+    logic [31:0] mstatus;
+    logic [31:0] mstatush;
+    logic [31:0] mtvec;
+    logic [31:0] mepc;
+    logic [31:0] mcause;
+    logic [31:0] mscratch;
+    logic [31:0] mtval;
+    logic [31:0] mie;
+    logic [31:0] mip;
+    logic [31:0] misa;
+    logic [31:0] medeleg;
+    logic [31:0] mideleg;
+    logic [31:0] menvcfg;
+    logic [31:0] mseccfg;
+
+    // 监督级 CSR
+    logic [31:0] stvec;
+    logic [31:0] sepc;
+    logic [31:0] scause;
+    logic [31:0] sscratch;
+    logic [31:0] stval;
+    logic [31:0] satp;
+    logic [31:0] senvcfg;
+
     logic [31:0] tohost_data;
     logic [31:0] tohost_data_1000;
     logic [31:0] tohost_data_2000;
@@ -48,6 +78,8 @@ module test_tb;
     localparam int unsigned TOHOST_WORD_ADDR_2000 = 32'h2000 >> 2;
 
     always_comb begin
+        priv_lvl = u_CPU_TOP.current_priv_mode;
+
         x0  = `REG_FILE.rf_in[0];
         x1  = `REG_FILE.rf_in[1];
         x2  = `REG_FILE.rf_in[2];
@@ -80,6 +112,32 @@ module test_tb;
         x29 = `REG_FILE.rf_in[29];
         x30 = `REG_FILE.rf_in[30];
         x31 = `REG_FILE.rf_in[31];
+
+        // Add zicfi registers
+
+        mstatus  = `CSR_FILE.mstatus;
+        mstatush = `CSR_FILE.mstatush;
+        mtvec    = `CSR_FILE.mtvec;
+        mepc     = `CSR_FILE.mepc;
+        mcause   = `CSR_FILE.mcause;
+        mscratch = `CSR_FILE.mscratch;
+        mtval    = `CSR_FILE.mtval;
+        mie      = `CSR_FILE.mie;
+        mip      = `CSR_FILE.mip;
+        misa     = `CSR_FILE.misa;
+        medeleg  = `CSR_FILE.medeleg;
+        mideleg  = `CSR_FILE.mideleg;
+        menvcfg  = `CSR_FILE.menvcfg;
+        mseccfg  = `CSR_FILE.mseccfg;
+
+        stvec    = `CSR_FILE.stvec;
+        sepc     = `CSR_FILE.sepc;
+        scause   = `CSR_FILE.scause;
+        sscratch = `CSR_FILE.sscratch;
+        stval    = `CSR_FILE.stval;
+        satp     = `CSR_FILE.satp;
+        senvcfg  = `CSR_FILE.senvcfg;
+
         tohost_data_1000 = u_CPU_TOP.u_DRAM.ram_data[TOHOST_WORD_ADDR_1000];
         tohost_data_2000 = u_CPU_TOP.u_DRAM.ram_data[TOHOST_WORD_ADDR_2000];
         if (tohost_1000_armed && tohost_data_1000 != 32'b0) begin

@@ -20,6 +20,8 @@ module CPU_TOP (
     logic [31:0]     pc_IF,     pc_ID,     pc_EX,     pc_MEM,     pc_WB;
     logic [31:0]    pc4_IF,    pc4_ID,    pc4_EX,    pc4_MEM,    pc4_WB;
     logic [31:0]  instr_IF,  instr_ID,  instr_EX,  instr_MEM,  instr_WB;
+    logic [31:0] load_data_WB;
+    logic [31:0] rf_wd_WB_from_ALU;
 
     logic [4:0]             alu_op_ID, alu_op_EX;
 
@@ -72,17 +74,23 @@ module CPU_TOP (
     logic        is_ecall_ID, is_ecall_EX;
     logic        is_mret_ID, is_mret_EX;
     logic        is_sret_ID, is_sret_EX;
+    logic        is_lpad_instr_ID;
     logic [31:0] csr_rdata_EX;
     logic [31:0] csr_wdata_EX;
     logic        csr_write_intent_ID, csr_write_intent_EX;
     logic [ 1:0] current_priv_mode;
     logic        mstatus_tsr;
     logic        mstatus_tvm;
+    logic        current_sse_enabled;
+    logic        current_lpe_enabled;
+    logic        elp_expected;
+    logic [31:0] ssp_value;
 
     // 非法指令检测信号
     logic        is_illegal_instr_ID, is_illegal_instr_EX;
     logic        privileged_illegal_instr_ID;
     logic        illegal_instr_exception_effective_ID;
+    logic        software_check_exception_effective_ID;
     logic        flushes_id_exception_ID;
     logic        redirect_from_ex_stage;
 
@@ -100,6 +108,25 @@ module CPU_TOP (
     logic        illegal_instr_exception_ID;
     logic [31:0] illegal_instr_pc_ID;
     logic [31:0] illegal_instr_encoding_ID;
+
+    logic [31:0] x7_rf_ID;
+    logic [31:0] x7_effective_ID;
+    logic        lpad_pass_ID;
+    logic        software_check_exception_ID;
+    logic [31:0] software_check_tval_ID;
+    logic [ 3:0] sl_type_effective_EX;
+    logic [31:0] shadow_addr_EX;
+    logic        shadow_mem_active_EX;
+    logic        shadow_serialize_EX;
+    logic        shadow_serialize_MEM;
+    logic        shadow_serialize_WB;
+    logic        shadow_access_fault_EX;
+    logic        sspopchk_fault_WB;
+    logic        sspopchk_success_WB;
+    logic        ssp_update_valid;
+    logic [31:0] ssp_update_data;
+    logic        elp_update_valid;
+    logic        elp_update_expected;
 // ================= 各级之间的信号 ===================
 
 // IF级
@@ -177,7 +204,8 @@ module CPU_TOP (
         .rR2   (rR2),
         // 读数据端口
         .rD1   (rf_rd1_ID),
-        .rD2   (rf_rd2_ID)
+        .rD2   (rf_rd2_ID),
+        .x7_o  (x7_rf_ID)
     );
 
     logic rs1_used_ID;
@@ -206,6 +234,7 @@ module CPU_TOP (
         .is_ecall       (is_ecall_ID),
         .is_mret        (is_mret_ID),
         .is_sret        (is_sret_ID),
+        .is_lpad_instr  (is_lpad_instr_ID),
         // 非法指令检测
         .is_illegal_instr(is_illegal_instr_ID)
     );
@@ -219,15 +248,40 @@ module CPU_TOP (
         endcase
     end
 
+    always_comb begin
+        x7_effective_ID = x7_rf_ID;
+        if (mul_valid_o && mul_rf_we_o && (mul_rd_o == 5'd7)) begin
+            x7_effective_ID = mul_result;
+        end
+        if (rf_we_WB && (wR_WB == 5'd7)) begin
+            x7_effective_ID = rf_wd_WB_from_ALU_or_DRAM;
+        end
+        if (rf_we_MEM && (wR_MEM == 5'd7)) begin
+            x7_effective_ID = rf_wd_MEM;
+        end
+        if (rf_we_EX && (wR_EX == 5'd7)) begin
+            x7_effective_ID = rf_wd_EX;
+        end
+    end
+
     assign privileged_illegal_instr_ID =
         (is_csr_instr_ID && (current_priv_mode < csr_addr_ID[9:8])) ||
         (is_csr_instr_ID && csr_write_intent_ID && (csr_addr_ID[11:10] == 2'b11)) ||
+        (is_csr_instr_ID && (csr_addr_ID == `CSR_SSP) &&
+         (current_priv_mode != `PRV_M) && !current_sse_enabled) ||
         (is_csr_instr_ID && (csr_addr_ID == `CSR_SATP) &&
          (current_priv_mode == `PRV_S) && mstatus_tvm) ||
         (is_mret_ID && (current_priv_mode != `PRV_M)) ||
         (is_sret_ID &&
          ((current_priv_mode == `PRV_U) ||
           ((current_priv_mode == `PRV_S) && mstatus_tsr)));
+
+    assign lpad_pass_ID = is_lpad_instr_ID &&
+                          (pc_ID[1:0] == 2'b00) &&
+                          ((instr_ID[31:12] == 20'b0) ||
+                           (instr_ID[31:12] == x7_effective_ID[31:12]));
+    assign software_check_exception_ID = valid_ID && current_lpe_enabled && elp_expected && !lpad_pass_ID;
+    assign software_check_tval_ID = `SOFTCHK_LPAD_FAULT;
 
     // 早期非法指令异常检测 (ID级)
     // 当检测到非法指令时，在ID级就触发异常
@@ -397,6 +451,13 @@ module CPU_TOP (
         endcase
     end
 
+    assign shadow_mem_active_EX = valid_EX && current_sse_enabled &&
+                                  ((sl_type_EX == `MEM_SSPUSH) || (sl_type_EX == `MEM_SSPOPCHK));
+    assign sl_type_effective_EX =
+        shadow_mem_active_EX ? sl_type_EX :
+        (((sl_type_EX == `MEM_SSPUSH) || (sl_type_EX == `MEM_SSPOPCHK)) ? `MEM_NOP : sl_type_EX);
+    assign shadow_addr_EX = (sl_type_EX == `MEM_SSPUSH) ? (ssp_value - 32'd4) : ssp_value;
+
     // Exception handling:
     // 异常分为两类：
     // 1. ID级异常：非法指令 - 需要早期检测以防止其前面的指令提交
@@ -434,7 +495,7 @@ module CPU_TOP (
     always_comb begin
         load_misaligned_EX = 1'b0;
         store_misaligned_EX = 1'b0;
-        case (sl_type_EX)
+        case (sl_type_effective_EX)
             `MEM_LW:  load_misaligned_EX  = (alu_result_EX[1:0] != 2'b00);
             `MEM_LH,
             `MEM_LHU: load_misaligned_EX  = (alu_result_EX[0] != 1'b0);
@@ -450,29 +511,38 @@ module CPU_TOP (
     // EX级异常 (不包括非法指令，非法指令在ID级处理)
     logic exception_valid_EX;
     logic take_branch_normal;
+    assign shadow_access_fault_EX = shadow_mem_active_EX && (shadow_addr_EX[1:0] != 2'b00);
     assign exception_valid_EX = (instr_misaligned_EX || load_misaligned_EX ||
-                                 store_misaligned_EX || is_ecall_EX) && valid_EX;
+                                 store_misaligned_EX || shadow_access_fault_EX ||
+                                 is_ecall_EX) && valid_EX;
     assign redirect_from_ex_stage = take_branch_normal ||
                                     exception_valid_EX ||
                                     (is_mret_EX && valid_EX) ||
                                     (is_sret_EX && valid_EX);
-    assign flushes_id_exception_ID = take_branch_normal ||
-                                     (is_mret_EX && valid_EX) ||
-                                     (is_sret_EX && valid_EX);
+    assign flushes_id_exception_ID = redirect_from_ex_stage || sspopchk_fault_WB ||
+                                     shadow_serialize_EX || shadow_serialize_MEM || shadow_serialize_WB;
+    assign software_check_exception_effective_ID =
+        software_check_exception_ID && !flushes_id_exception_ID;
     assign illegal_instr_exception_effective_ID =
-        illegal_instr_exception_ID && !flushes_id_exception_ID;
+        illegal_instr_exception_ID && !flushes_id_exception_ID && !software_check_exception_ID;
 
     // 总异常信号：EX级异常 OR ID级非法指令异常
     // 优先级：EX级异常 > ID级异常
     // 注意：当EX级有有效的跳转/分支时，ID级的指令将被flush，
     // 所以ID级的非法指令异常不应该生效
     // 这防止了跳转到数据区域时，数据被误认为非法指令而触发异常
-    assign exception_valid = exception_valid_EX ||
+    assign exception_valid = sspopchk_fault_WB ||
+                             exception_valid_EX ||
+                             software_check_exception_effective_ID ||
                              illegal_instr_exception_effective_ID;
 
     // 异常PC和原因/值的选择
     always_comb begin
-        if (instr_misaligned_EX && valid_EX) begin
+        if (sspopchk_fault_WB) begin
+            exception_pc    = pc_WB;
+            exception_cause = `EXC_SOFTWARE_CHECK;
+            exception_tval  = `SOFTCHK_SHADOW_STACK_FAULT;
+        end else if (instr_misaligned_EX && valid_EX) begin
             // EX级地址未对齐异常优先
             exception_pc    = pc_EX;
             exception_cause = 32'd0;  // Instruction address misaligned
@@ -485,6 +555,10 @@ module CPU_TOP (
             exception_pc    = pc_EX;
             exception_cause = `EXC_STORE_MISALIGNED;
             exception_tval  = alu_result_EX;
+        end else if (shadow_access_fault_EX && valid_EX) begin
+            exception_pc    = pc_EX;
+            exception_cause = `EXC_STORE_ACCESS_FAULT;
+            exception_tval  = shadow_addr_EX;
         end else if (is_ecall_EX && valid_EX) begin
             exception_pc    = pc_EX;
             case (current_priv_mode)
@@ -493,6 +567,10 @@ module CPU_TOP (
                 default: exception_cause = `EXC_ECALL_M;
             endcase
             exception_tval  = 32'b0;
+        end else if (software_check_exception_effective_ID) begin
+            exception_pc    = pc_ID;
+            exception_cause = `EXC_SOFTWARE_CHECK;
+            exception_tval  = software_check_tval_ID;
         end else if (illegal_instr_exception_effective_ID) begin
             // ID级非法指令异常
             exception_pc    = illegal_instr_pc_ID;
@@ -523,14 +601,44 @@ module CPU_TOP (
         // xRET interface
         .mret_valid     (is_mret_EX && valid_EX),
         .sret_valid     (is_sret_EX && valid_EX),
+        .ssp_update_valid(ssp_update_valid),
+        .ssp_update_data(ssp_update_data),
+        .elp_update_valid(elp_update_valid),
+        .elp_update_expected(elp_update_expected),
         // Trap output
         .trap_to_mmode  (trap_to_mmode),
         .trap_target    (trap_target),
         .xret_target    (xret_target),
         .current_priv_mode(current_priv_mode),
         .mstatus_tsr    (mstatus_tsr),
-        .mstatus_tvm    (mstatus_tvm)
+        .mstatus_tvm    (mstatus_tvm),
+        .current_sse_enabled(current_sse_enabled),
+        .current_lpe_enabled(current_lpe_enabled),
+        .elp_expected   (elp_expected),
+        .ssp_value      (ssp_value)
     );
+
+    assign sspopchk_fault_WB = valid_WB && (sl_type_WB == `MEM_SSPOPCHK) &&
+                               (load_data_WB != rf_wd_WB_from_ALU);
+    assign sspopchk_success_WB = valid_WB && (sl_type_WB == `MEM_SSPOPCHK) &&
+                                 (load_data_WB == rf_wd_WB_from_ALU);
+    assign ssp_update_valid = (shadow_mem_active_EX && (sl_type_EX == `MEM_SSPUSH) &&
+                               !shadow_access_fault_EX) || sspopchk_success_WB;
+    assign ssp_update_data = (shadow_mem_active_EX && (sl_type_EX == `MEM_SSPUSH)) ?
+                             shadow_addr_EX : (ssp_value + 32'd4);
+    assign elp_update_valid = (valid_EX && current_lpe_enabled &&
+                               (jump_type_EX == `JUMP_JALR) &&
+                               (instr_EX[19:15] != 5'd1) &&
+                               (instr_EX[19:15] != 5'd5) &&
+                               (instr_EX[19:15] != 5'd7) &&
+                               !exception_valid_EX) ||
+                              (lpad_pass_ID && valid_ID && !flushes_id_exception_ID);
+    assign elp_update_expected = valid_EX && current_lpe_enabled &&
+                                 (jump_type_EX == `JUMP_JALR) &&
+                                 (instr_EX[19:15] != 5'd1) &&
+                                 (instr_EX[19:15] != 5'd5) &&
+                                 (instr_EX[19:15] != 5'd7) &&
+                                 !exception_valid_EX;
 
     // NextPC 计算 - 现在需要考虑异常、MRET和SRET
     NextPC_Generator u_NextPC_Generator (
@@ -564,15 +672,21 @@ module CPU_TOP (
     // 在EX级完成选择以减少流水线寄存器宽度
     // 注意 load 指令的数据在 MEM 级才可用 因此不可能选择 DRAM 作为回写数据来源
     always_comb begin : wd_EX_MUX
-        case (wd_sel_EX)
-            `WD_SEL_FROM_ALU:  rf_wd_EX = alu_result_EX;
-            // `WD_SEL_FROM_DRAM在MEM级处理
-            `WD_SEL_FROM_PC4:  rf_wd_EX = pc4_EX;
-            // 如果回写的是立即数扩展值 则需要判断是否为AUIPC指令
-            `WD_SEL_FROM_IEXT: rf_wd_EX = (is_auipc_EX) ? branch_target_EX : imm_EX;
-            `WD_SEL_FROM_CSR:  rf_wd_EX = csr_rdata_EX;
-            default:           rf_wd_EX = 32'b0;
-        endcase
+        if (shadow_mem_active_EX &&
+            ((sl_type_EX == `MEM_SSPUSH) || (sl_type_EX == `MEM_SSPOPCHK))) begin
+            rf_wd_EX = rf_rd1_EX;
+        end else begin
+            case (wd_sel_EX)
+                `WD_SEL_FROM_ALU:  rf_wd_EX = alu_result_EX;
+                // `WD_SEL_FROM_DRAM在MEM级处理
+                `WD_SEL_FROM_PC4:  rf_wd_EX = pc4_EX;
+                // 如果回写的是立即数扩展值 则需要判断是否为AUIPC指令
+                `WD_SEL_FROM_IEXT: rf_wd_EX = (is_auipc_EX) ? branch_target_EX : imm_EX;
+                `WD_SEL_FROM_CSR:  rf_wd_EX = csr_rdata_EX;
+                `WD_SEL_FROM_SSP:  rf_wd_EX = current_sse_enabled ? ssp_value : 32'b0;
+                default:           rf_wd_EX = 32'b0;
+            endcase
+        end
     end
 
 // ================= EX/MEM 流水线寄存器 ===================
@@ -582,8 +696,8 @@ module CPU_TOP (
     // - ID级非法指令只应杀掉它自己和更年轻的指令，不能回滚更老的 EX/MEM/WB 指令
     logic flush_EX_MEM;
     logic flush_MEM_WB;
-    assign flush_EX_MEM = exception_valid_EX;
-    assign flush_MEM_WB = 1'b0;
+    assign flush_EX_MEM = exception_valid_EX || sspopchk_fault_WB;
+    assign flush_MEM_WB = sspopchk_fault_WB;
 
     PR_EX_MEM u_PR_EX_MEM (
         .clk              (clk),
@@ -601,13 +715,13 @@ module CPU_TOP (
         .wd_sel_mem_o     (wd_sel_MEM),
         .wr_ex_i          (wR_EX),
         .wr_mem_o         (wR_MEM),
-        .alu_result_ex_i  (alu_result_EX),
+        .alu_result_ex_i  (shadow_mem_active_EX ? shadow_addr_EX : alu_result_EX),
         .alu_result_mem_o (alu_result_MEM),
         .wd_ex_i          (rf_wd_EX),
         .wd_mem_o         (rf_wd_MEM),
         .rD2_ex_i         (rf_rd2_EX),
         .rD2_mem_o        (rf_rd2_MEM),
-        .sl_type_ex_i     (sl_type_EX),
+        .sl_type_ex_i     (sl_type_effective_EX),
         .sl_type_mem_o    (sl_type_MEM)
     );
 
@@ -620,7 +734,7 @@ module CPU_TOP (
     StoreUnit u_StoreUnit_MEM (
         .sl_type      (sl_type_MEM),
         .addr         (alu_result_MEM),
-        .store_data_i (rf_rd2_MEM),
+        .store_data_i ((sl_type_MEM == `MEM_SSPUSH) ? rf_wd_MEM : rf_rd2_MEM),
         .store_data_o (DRAM_input_data),
         .dram_we      (dram_we_MEM),
         .wstrb        (dram_we_MEM_strbe)
@@ -644,7 +758,6 @@ module CPU_TOP (
 
 // ================= MEM/WB 流水线寄存器 ===================
 
-    logic [31:0] rf_wd_WB_from_ALU;
     PR_MEM_WB u_PR_MEM_WB (
         .clk              (clk),
         .rst_n            (rst_n),
@@ -680,14 +793,18 @@ module CPU_TOP (
 // WB 级
     // WB级LoadStoreUnit - 专门处理Load操作
     // 使用WB级的sl_type和地址来正确处理DRAM读取的数据
-    logic [31:0] load_data_WB;
-
     LoadUnit u_LoadUnit_WB (
         .sl_type    (sl_type_WB),
         .addr       (alu_result_WB),
         .load_data_i(DRAM_output_data),
         .load_data_o(load_data_WB)
     );
+
+    assign shadow_serialize_EX = shadow_mem_active_EX;
+    assign shadow_serialize_MEM = valid_MEM &&
+                                  ((sl_type_MEM == `MEM_SSPUSH) || (sl_type_MEM == `MEM_SSPOPCHK));
+    assign shadow_serialize_WB = valid_WB &&
+                                 ((sl_type_WB == `MEM_SSPUSH) || (sl_type_WB == `MEM_SSPOPCHK));
 
     // 回写数据来源选择MUX
     // 对于同步DRAM，DRAM的spo已经是寄存器输出，在WB级直接使用以避免多余延迟
@@ -746,6 +863,9 @@ module CPU_TOP (
         // WAW冒险检测所需的ID级信号
         .wR_ID             (wR_ID),
         .rf_we_ID          (rf_we_ID),
+        .shadow_serialize_EX(shadow_serialize_EX),
+        .shadow_serialize_MEM(shadow_serialize_MEM),
+        .shadow_serialize_WB(shadow_serialize_WB),
         // 输出
         .keep_pc           (keep_PC),
         .stall_IF_ID       (stall_IF_ID),

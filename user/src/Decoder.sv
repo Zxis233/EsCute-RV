@@ -32,6 +32,7 @@ module Decoder (
     output logic        is_ecall,         // ECALL指令
     output logic        is_mret,          // MRET指令
     output logic        is_sret,          // SRET指令
+    output logic        is_lpad_instr,    // LPAD 指令标识
     // 非法指令检测
     output logic        is_illegal_instr  // 非法指令标识
 );
@@ -51,6 +52,20 @@ module Decoder (
     logic is_mul_funct3;
     assign is_mul_funct3 = (funct3 == `FUNCT3_ADD_SUB_MUL) || (funct3 == `FUNCT3_SLL_MULH) ||
         (funct3 == `FUNCT3_SLT_MULHSU) || (funct3 == `FUNCT3_SLTU_MULHU);
+
+    logic is_lpad_internal;
+    logic is_sspush_internal;
+    logic is_sspopchk_internal;
+    logic is_ssrdp_encoding;
+    logic is_ssrdp_internal;
+
+    assign is_lpad_internal = ((instr & `MASK_LPAD) == `MATCH_LPAD);
+    assign is_sspush_internal = ((instr & `MASK_SSPUSH) == `MATCH_SSPUSH);
+    assign is_ssrdp_encoding = ((instr & `MASK_SSRDP) == `MATCH_SSRDP);
+    assign is_ssrdp_internal = is_ssrdp_encoding && (instr[11:7] != 5'd0);
+    assign is_sspopchk_internal = !is_ssrdp_encoding &&
+                                  ((instr & `MASK_SSPOPCHK) == `MATCH_SSPOPCHK);
+    assign is_lpad_instr = is_lpad_internal;
 
     // 内部乘法指令信号（用于wd_sel和rf_we判断）
     logic is_mul_internal;
@@ -73,13 +88,13 @@ module Decoder (
     assign csr_use_imm = (opcode == OPCODE_ZICSR) &&
         (funct3[2] == 1'b1);  // funct3[2]=1 for immediate variants
 
-    assign rs1_used =
+    assign rs1_used = (is_sspush_internal || is_sspopchk_internal) ? 1'b1 :
+        (is_lpad_internal || is_sspush_internal || is_ssrdp_encoding) ? 1'b0 :
         ~((opcode == OPCODE_LUI) || (opcode == OPCODE_AUIPC) || (opcode == OPCODE_JAL) ||
           (opcode == OPCODE_ZERO) || csr_use_imm ||
           ((opcode == OPCODE_ZICSR) && (funct3 == `FUNCT3_CALL)));  // ECALL/MRET/SRET don't use rs1
     // // rs2：只有 R-type / B-type / S-type 用到
-    assign
-        rs2_used = (opcode == OPCODE_RTYPE) || (opcode == OPCODE_BTYPE) || (opcode == OPCODE_STYPE);
+    assign rs2_used = (opcode == OPCODE_RTYPE) || (opcode == OPCODE_BTYPE) || (opcode == OPCODE_STYPE);
 
 
     // [HACK] Icarus Verilog 不支持 inside 语法糖 :(
@@ -97,7 +112,7 @@ module Decoder (
 
     // ALU 第一操作数来源
     // 判断是否为 AUIPC 指令即可
-    assign is_auipc = (opcode == OPCODE_AUIPC);
+    assign is_auipc = (opcode == OPCODE_AUIPC) && !is_lpad_internal;
 
     // ALU 第二操作数来源
     // verilog_format:off
@@ -124,6 +139,10 @@ module Decoder (
         // 首先检测是否为乘法指令
         if (is_mul_internal) begin
             wd_sel = `WD_SEL_FROM_MUL;
+        end else if (is_ssrdp_internal) begin
+            wd_sel = `WD_SEL_FROM_SSP;
+        end else if (is_lpad_internal) begin
+            wd_sel = 3'b0;
         end else begin
             unique case (opcode)
                 OPCODE_RTYPE,
@@ -152,6 +171,10 @@ module Decoder (
         // 首先检测是否为乘法指令
         if (is_mul_internal) begin
             rf_we = 1'b0;  // 乘法指令的写回由乘法器处理
+        end else if (is_ssrdp_internal) begin
+            rf_we = 1'b1;
+        end else if (is_lpad_internal || is_sspush_internal || is_sspopchk_internal) begin
+            rf_we = 1'b0;
         end else begin
             unique case (opcode)
                 OPCODE_RTYPE,
@@ -175,7 +198,7 @@ module Decoder (
     // verilog_format:on
 
     // 数据存储器写使能
-    assign dram_we = (opcode == OPCODE_STYPE);
+    assign dram_we = (opcode == OPCODE_STYPE) || is_sspush_internal;
 
     // ALU 操作码生成
     // verilog_format:off
@@ -267,28 +290,34 @@ module Decoder (
     // 数据存取类型判断
     // verilog_format:off
     always_comb begin : sl_selection
-        unique case (opcode)
-            OPCODE_LTYPE: begin
-                case (funct3)
-                    `FUNCT3_LB:     sl_type = `MEM_LB;
-                    `FUNCT3_LBU:    sl_type = `MEM_LBU;
-                    `FUNCT3_LH:     sl_type = `MEM_LH;
-                    `FUNCT3_LHU:    sl_type = `MEM_LHU;
-                    `FUNCT3_LW:     sl_type = `MEM_LW;
-                    default:        sl_type = `MEM_NOP;
-                endcase
-            end
+        if (is_sspush_internal) begin
+            sl_type = `MEM_SSPUSH;
+        end else if (is_sspopchk_internal) begin
+            sl_type = `MEM_SSPOPCHK;
+        end else begin
+            unique case (opcode)
+                OPCODE_LTYPE: begin
+                    case (funct3)
+                        `FUNCT3_LB:     sl_type = `MEM_LB;
+                        `FUNCT3_LBU:    sl_type = `MEM_LBU;
+                        `FUNCT3_LH:     sl_type = `MEM_LH;
+                        `FUNCT3_LHU:    sl_type = `MEM_LHU;
+                        `FUNCT3_LW:     sl_type = `MEM_LW;
+                        default:        sl_type = `MEM_NOP;
+                    endcase
+                end
 
-            OPCODE_STYPE:begin
-                case (funct3)
-                    `FUNCT3_SB:     sl_type = `MEM_SB;
-                    `FUNCT3_SH:     sl_type = `MEM_SH;
-                    `FUNCT3_SW:     sl_type = `MEM_SW;
-                    default:        sl_type = `MEM_NOP;
-                endcase
-            end
-            default:                sl_type = `MEM_NOP;
-        endcase
+                OPCODE_STYPE:begin
+                    case (funct3)
+                        `FUNCT3_SB:     sl_type = `MEM_SB;
+                        `FUNCT3_SH:     sl_type = `MEM_SH;
+                        `FUNCT3_SW:     sl_type = `MEM_SW;
+                        default:        sl_type = `MEM_NOP;
+                    endcase
+                end
+                default:                sl_type = `MEM_NOP;
+            endcase
+        end
     end
 
     // 乘法指令检测
@@ -312,7 +341,12 @@ module Decoder (
         csr_addr = instr[31:20];
         csr_op   = funct3;
 
-        if (opcode == OPCODE_ZICSR) begin
+        if (is_sspush_internal || is_sspopchk_internal || is_ssrdp_encoding) begin
+            is_csr_instr = 1'b0;
+            is_ecall     = 1'b0;
+            is_mret      = 1'b0;
+            is_sret      = 1'b0;
+        end else if (opcode == OPCODE_ZICSR) begin
             if (funct3 == `FUNCT3_CALL) begin
                 // ECALL: instr = 0x00000073
                 // MRET:  instr = 0x30200073
@@ -443,7 +477,11 @@ module Decoder (
 
             OPCODE_ZICSR: begin
                 // CSR and system instructions
-                if (funct3 == `FUNCT3_CALL) begin
+                if (is_sspush_internal || is_sspopchk_internal || is_ssrdp_internal) begin
+                    is_illegal_instr = 1'b0;
+                end else if (is_ssrdp_encoding) begin
+                    is_illegal_instr = 1'b1;  // SSRDP rd=x0 保留为非法编码
+                end else if (funct3 == `FUNCT3_CALL) begin
                     // ECALL: instr = 0x00000073
                     // MRET:  instr = 0x30200073
                     // SRET:  instr = 0x10200073
@@ -500,6 +538,15 @@ module Decoder (
       default:            branch_type_ascii = "BRANCH_UNKNOWN";
     endcase
     // 判断当前具体为32条基本指令的哪一条
+    if (is_lpad_internal) begin
+      instr_ascii = "LPAD";
+    end else if (is_sspush_internal) begin
+      instr_ascii = "SSPUSH";
+    end else if (is_sspopchk_internal) begin
+      instr_ascii = "SSPOPCHK";
+    end else if (is_ssrdp_internal) begin
+      instr_ascii = "SSRDP";
+    end else begin
     unique case (opcode)
       OPCODE_LUI:              instr_ascii = "LUI";
       OPCODE_AUIPC:            instr_ascii = "AUIPC";
@@ -607,6 +654,7 @@ module Decoder (
 
       default:                  instr_ascii = "ERROR";
     endcase
+    end
   end
 `endif
     // verilog_format:on

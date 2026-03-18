@@ -17,7 +17,8 @@ module RegisterF (
     input  logic [31:0] wD2,
     // 读数据端口
     output logic [31:0] rD1,
-    output logic [31:0] rD2
+    output logic [31:0] rD2,
+    output logic [31:0] x7_o
 );
 
     logic [31:0] rf_in[32];  // 32个寄存器 unpacked 维度使用 [32]
@@ -47,6 +48,7 @@ module RegisterF (
     always_comb begin
         rD1 = (rR1 == 0) ? {32{1'b0}} : rf_in[rR1];  // x0寄存器恒为0
         rD2 = (rR2 == 0) ? {32{1'b0}} : rf_in[rR2];
+        x7_o = rf_in[7];
     end
 
 endmodule

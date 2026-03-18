@@ -1,3 +1,5 @@
+`include "include/defines.svh"
+
 // StoreUnit模块 - 专门用于MEM级的Store操作
 // 负责处理SB/SH/SW的字节对齐和写使能生成
 module StoreUnit (
@@ -15,7 +17,11 @@ module StoreUnit (
         store_data_o = 32'b0;
 
         if (dram_we) begin
-            unique case (sl_type[1:0])
+            if (sl_type == `MEM_SSPUSH) begin
+                wstrb        = 4'b1111;
+                store_data_o = store_data_i;
+            end else begin
+                unique case (sl_type[1:0])
                 2'b01: begin  // SB
                     logic [4:0] shift;
                     shift = {addr[1:0], 3'b000};  // addr[1:0] * 8
@@ -57,7 +63,8 @@ module StoreUnit (
                     wstrb        = 4'b0000;
                     store_data_o = 32'b0;
                 end
-            endcase
+                endcase
+            end
         end
     end
 
@@ -65,10 +72,11 @@ module StoreUnit (
     logic [31:0] sl_type_ascii;
     always_comb begin
         case (sl_type)
-            `MEM_SB: sl_type_ascii = "SB  ";
-            `MEM_SH: sl_type_ascii = "SH  ";
-            `MEM_SW: sl_type_ascii = "SW  ";
-            default: sl_type_ascii = "----";
+            `MEM_SB:     sl_type_ascii = "SB  ";
+            `MEM_SH:     sl_type_ascii = "SH  ";
+            `MEM_SW:     sl_type_ascii = "SW  ";
+            `MEM_SSPUSH: sl_type_ascii = "SSPU";
+            default:     sl_type_ascii = "----";
         endcase
     end
 `endif
