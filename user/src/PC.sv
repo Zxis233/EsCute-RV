@@ -12,18 +12,13 @@ module PC (
     output logic [31:0] pc_if,
     output logic [31:0] pc4_if
 );
-
-    logic [31:0] npc;
-
-    always_comb begin
-        pc4_if = pc_if + 4;
-        npc    = branch_op ? branch_target : pc4_if;
-    end
+    assign pc4_if = pc_if + 4;
 
     always_ff @(posedge clk or negedge rst_n) begin
-        if (!rst_n)       pc_if <= `INITIAL_PC;
-        else if (keep_pc) pc_if <= pc_if;
-        else              pc_if <= npc;
+        if (!rst_n)         pc_if <= `INITIAL_PC;
+        else if (branch_op) pc_if <= branch_target;
+        else if (keep_pc)   pc_if <= pc_if;
+        else                pc_if <= pc4_if;
     end
 
 endmodule

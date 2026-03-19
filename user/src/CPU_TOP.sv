@@ -526,6 +526,8 @@ module CPU_TOP (
     assign flush_EX_MEM = exception_valid;
     // 只有当ID级非法指令异常触发且没有EX级异常时，才冲刷MEM/WB
     assign flush_MEM_WB = illegal_instr_exception_ID && !exception_valid_EX;
+    // assign flush_MEM_WB = 1'b0;
+    // assign flush_MEM_WB = exception_valid && !exception_valid_EX;
 
     PR_EX_MEM u_PR_EX_MEM (
         .clk              (clk),
