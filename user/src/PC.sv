@@ -12,25 +12,13 @@ module PC (
     output logic [31:0] pc_if,
     output logic [31:0] pc4_if
 );
-
-    logic [31:0] npc;
-
-    always_comb begin
-        pc4_if = pc_if + 4;
-        npc    = branch_op ? branch_target : pc4_if;
-    end
+    assign pc4_if = pc_if + 4;
 
     always_ff @(posedge clk or negedge rst_n) begin
-        if (!rst_n) begin
-            pc_if <= `INITIAL_PC;
-        end else if (branch_op) begin
-            // Trap/xRET/branch redirect must beat pipeline holds.
-            pc_if <= branch_target;
-        end else if (keep_pc) begin
-            pc_if <= pc_if;
-        end else begin
-            pc_if <= npc;
-        end
+        if (!rst_n)         pc_if <= `INITIAL_PC;
+        else if (branch_op) pc_if <= branch_target;
+        else if (keep_pc)   pc_if <= pc_if;
+        else                pc_if <= pc4_if;
     end
 
 endmodule

@@ -45,7 +45,7 @@ module CSR (
     output logic [31:0] ssp_value
 );
 
-    // 机器级 CSR
+// 机器级 CSR
     logic [31:0] mstatus;
     logic [31:0] mstatush;
     logic [31:0] mtvec;
@@ -61,7 +61,7 @@ module CSR (
     logic [31:0] menvcfg;
     logic [31:0] mseccfg;
 
-    // 监督级 CSR
+// 监督级 CSR
     logic [31:0] stvec;
     logic [31:0] sepc;
     logic [31:0] scause;
@@ -80,7 +80,7 @@ module CSR (
     // 当前特权级
     logic [ 1:0] priv_mode;
 
-    // mstatus 位定义
+// mstatus 位定义
     localparam integer SIE_BIT = 1;
     localparam integer MIE_BIT = 3;
     localparam integer SPIE_BIT = 5;
@@ -100,6 +100,8 @@ module CSR (
     localparam logic [31:0] SENVCFG_WRITABLE_MASK = 32'h0000_000C;
     localparam logic [31:0] MSECCFG_WRITABLE_MASK = 32'h0000_0400;
 
+
+// 4 字节对齐
     function automatic [31:0] align_trap_vector(input logic [31:0] value);
         begin
             align_trap_vector = {value[31:2], 2'b00};
@@ -112,6 +114,7 @@ module CSR (
         end
     endfunction
 
+// 提取出对外可见部分
     function automatic [31:0] compose_sstatus(input logic [31:0] mstatus_value);
         begin
             compose_sstatus = mstatus_value & SSTATUS_MASK;
@@ -132,10 +135,13 @@ module CSR (
         end
     endfunction
 
+// 规范化软件写入值
+// 防止软件把 mstatus 写成非法/未实现状态
     function automatic [31:0] sanitize_mstatus(input logic [31:0] new_value);
         logic [31:0] sanitized;
         begin
             sanitized = new_value & MSTATUS_WRITABLE_MASK;
+            // 若 MPP 被设置成保留的状态代码 强制改为用户态
             if (sanitized[MPP_HIGH:MPP_LOW] == 2'b10) begin
                 sanitized[MPP_HIGH:MPP_LOW] = `PRV_U;
             end
@@ -149,12 +155,14 @@ module CSR (
         end
     endfunction
 
+// 避免未实现位被随意写入
     function automatic [31:0] sanitize_menvcfg(input logic [31:0] new_value);
         begin
             sanitize_menvcfg = new_value & MENVCFG_WRITABLE_MASK;
         end
     endfunction
 
+// 写入时约束 确保 S 态不能绕过 M 态总开关
     function automatic [31:0] sanitize_senvcfg(
         input logic [31:0] new_value,
         input logic [31:0] menvcfg_value
@@ -169,12 +177,14 @@ module CSR (
         end
     endfunction
 
+// 控制 M 态 landing pad 相关能力
     function automatic [31:0] sanitize_mseccfg(input logic [31:0] new_value);
         begin
             sanitize_mseccfg = new_value & MSECCFG_WRITABLE_MASK;
         end
     endfunction
 
+// 对 sstatus 的写入合并到 mstatus 中
     function automatic [31:0] update_sstatus_view(
         input logic [31:0] old_mstatus,
         input logic [31:0] new_sstatus
@@ -190,6 +200,7 @@ module CSR (
         end
     endfunction
 
+// 判断当前特权级下 shadow stack 功能是否生效
     function automatic logic shadow_stack_enabled(
         input logic [ 1:0] priv,
         input logic [31:0] menvcfg_value,
@@ -206,6 +217,7 @@ module CSR (
         end
     endfunction
 
+// 判断当前特权级下 landing pad 功能是否生效
     function automatic logic landing_pad_enabled(
         input logic [ 1:0] priv,
         input logic [31:0] menvcfg_value,
@@ -222,6 +234,7 @@ module CSR (
         end
     endfunction
 
+// 判断当前异常/中断是否应该委托给 S 态处理
     function automatic logic take_delegated_trap(
         input logic [ 1:0] priv,
         input logic [31:0] cause,
@@ -242,7 +255,7 @@ module CSR (
     logic [31:0] senvcfg_view;
     assign senvcfg_view = compose_senvcfg(menvcfg, senvcfg);
 
-    // CSR 读取逻辑
+// CSR 读取逻辑
     always_comb begin
         case (csr_addr)
             `CSR_SSP:                  csr_rdata = ssp;
@@ -276,7 +289,7 @@ module CSR (
         endcase
     end
 
-    // 根据操作类型计算新的 CSR 值
+// 根据操作类型计算新的 CSR 值
     logic [31:0] csr_new_value;
     always_comb begin
         case (csr_op)
@@ -296,7 +309,7 @@ module CSR (
     assign mret_target_priv = mstatus[MPP_HIGH:MPP_LOW];
     assign sret_target_priv = mstatus[SPP_BIT] ? `PRV_S : `PRV_U;
 
-    // CSR 写入、异常进入和 xRET 恢复
+// CSR 写入、异常进入和 xRET 恢复
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             mstatus   <= 32'h0000_1800;
@@ -396,7 +409,7 @@ module CSR (
         end
     end
 
-    // mcycle 计数器
+// mcycle 计数器
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             mcycle <= 64'h0;

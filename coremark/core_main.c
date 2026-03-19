@@ -144,7 +144,9 @@ main(void)
               &_end, &_stack_top, sp);
     ee_u64 first_time;
     first_time = read_mcycle64();
-    ee_printf("Now Time: 0x%08x\n", first_time);
+    ee_u32 hi  = (ee_u32)(first_time >> 32);
+    ee_u32 lo  = (ee_u32)(first_time & 0xffffffffu);
+    ee_printf("Now Time: 0x%08x%08x\n", hi, lo);
 #else
 MAIN_RETURN_TYPE
 main(int argc, char* argv[])
@@ -315,16 +317,10 @@ for (i = 0; i < MULTITHREAD; i++)
     stop_time();
     total_time = get_time();
     /* get a function of the input to report */
-    seedcrc = crc16(results[0].seed1, seedcrc);
-    // ee_printf("");
-    seedcrc = crc16(results[0].seed2, seedcrc);
-    // ee_printf("");
-    seedcrc = crc16(results[0].seed3, seedcrc);
-    // ee_printf("");
-    seedcrc = crc16(results[0].size,  seedcrc);
-    // ee_printf("CRC_Result4 is 0x%04x\n", seedcrc);
-    // ee_printf("");
-    // ee_printf("Seed and size is 0x%04x 0x%04x 0x%04x 0x%04x\n", results[0].seed1, results[0].seed2, results[0].seed3, results[0].size);
+    seedcrc    = crc16(results[0].seed1, seedcrc);
+    seedcrc    = crc16(results[0].seed2, seedcrc);
+    seedcrc    = crc16(results[0].seed3, seedcrc);
+    seedcrc    = crc16(results[0].size, seedcrc);
 
     switch (seedcrc)
     {            /* test known output for common seeds */
@@ -436,7 +432,9 @@ for (i = 0; i < MULTITHREAD; i++)
             "Correct operation validated. See README.md for run and reporting "
             "rules.\n");
         first_time = read_mcycle64();
-        ee_printf("Now Time: 0x%08x\n", first_time);
+        hi         = (ee_u32)(first_time >> 32);
+        lo         = (ee_u32)(first_time & 0xffffffffu);
+        ee_printf("Now Time: 0x%08x%08x\n", hi, lo);
 #if HAS_FLOAT
         if (known_id == 3)
         {

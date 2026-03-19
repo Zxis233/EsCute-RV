@@ -14,11 +14,13 @@ PORT_CFLAGS = -O2 -g
 ARCH_FLAGS  = -march=rv32i_zicsr_zmmul_zicfiss_zicfilp -mabi=ilp32
 
 # freestanding / no libc
-BAREMETAL_FLAGS = -ffreestanding -fno-builtin -nostdlib -nostartfiles
+BAREMETAL_FLAGS = -ffreestanding -fno-builtin -nostdlib -nostartfiles 
+CFI_FLAGS = \
+-fcf-protection=full -fno-inline -fno-optimize-sibling-calls
 
 # include paths + CoreMark flag string
 FLAGS_STR = "$(PORT_CFLAGS) $(XCFLAGS) $(XLFLAGS) $(LFLAGS_END)"
-CFLAGS = $(PORT_CFLAGS) $(ARCH_FLAGS) $(BAREMETAL_FLAGS) \
+CFLAGS = $(PORT_CFLAGS) $(ARCH_FLAGS) $(BAREMETAL_FLAGS) $(CFI_FLAGS)\
          -I$(PORT_DIR) -I. -DFLAGS_STR=\"$(FLAGS_STR)\"
 
 # ===== Linker script & startup =====

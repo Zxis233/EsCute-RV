@@ -56,9 +56,9 @@ static inline ee_u64 read_mcycle64(void)
      * If high changed, low overflowed, so retry. */
     do
     {
-        __asm__ volatile("csrr %0, mcycleh" : "=r"(hi1));
-        __asm__ volatile("csrr %0, mcycle" : "=r"(lo));
-        __asm__ volatile("csrr %0, mcycleh" : "=r"(hi2));
+        __asm__ volatile("csrr %0, cycleh" : "=r"(hi1));
+        __asm__ volatile("csrr %0, cycle"  : "=r"(lo));
+        __asm__ volatile("csrr %0, cycleh" : "=r"(hi2));
     } while (hi1 != hi2);
     return ((ee_u64)hi1 << 32) | (ee_u64)lo;
 }
