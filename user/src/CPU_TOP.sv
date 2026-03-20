@@ -93,6 +93,8 @@ module CPU_TOP (
     logic        software_check_exception_effective_ID;
     logic        flushes_id_exception_ID;
     logic        redirect_from_ex_stage;
+    logic        csr_implemented_ID;
+    logic        csr_implemented_EX;
 
     // Exception/Trap相关信号
     logic        exception_valid;
@@ -128,6 +130,25 @@ module CPU_TOP (
     logic        elp_update_valid;
     logic        elp_update_expected;
 // ================= 各级之间的信号 ===================
+
+    function automatic logic csr_is_implemented(input logic [11:0] addr);
+        begin
+            unique case (addr)
+                `CSR_SSP, `CSR_SSTATUS, `CSR_SIE, `CSR_STVEC, `CSR_SCOUNTEREN,
+                `CSR_SENVCFG, `CSR_SSCRATCH, `CSR_SEPC, `CSR_SCAUSE, `CSR_STVAL,
+                `CSR_SIP, `CSR_SATP, `CSR_MSTATUS, `CSR_MISA, `CSR_MVENDORID,
+                `CSR_MARCHID, `CSR_MIMPID, `CSR_MHARTID, `CSR_MEDELEG,
+                `CSR_MIDELEG, `CSR_MIE, `CSR_MNSTATUS, `CSR_MTVEC,
+                `CSR_MSTATUSH, `CSR_PMPCFG0, `CSR_PMPADDR0, `CSR_MENVCFG,
+                `CSR_MCOUNTEREN, `CSR_MSCRATCH, `CSR_MEPC, `CSR_MCAUSE,
+                `CSR_MTVAL, `CSR_MIP, `CSR_MSECCFG, `CSR_MCYCLE, `CSR_CYCLE,
+                `CSR_MCYCLEH, `CSR_CYCLEH, `CSR_INSTRET, `CSR_INSTRETH:
+                    csr_is_implemented = 1'b1;
+                default:
+                    csr_is_implemented = 1'b0;
+            endcase
+        end
+    endfunction
 
 // IF级
 
@@ -265,6 +286,7 @@ module CPU_TOP (
     end
 
     assign privileged_illegal_instr_ID =
+        (is_csr_instr_ID && !csr_implemented_ID) ||
         (is_csr_instr_ID && (current_priv_mode < csr_addr_ID[9:8])) ||
         (is_csr_instr_ID && csr_write_intent_ID && (csr_addr_ID[11:10] == 2'b11)) ||
         (is_csr_instr_ID && (csr_addr_ID == `CSR_SSP) &&
@@ -289,6 +311,7 @@ module CPU_TOP (
     assign illegal_instr_exception_ID = (is_illegal_instr_ID || privileged_illegal_instr_ID) && valid_ID;
     assign illegal_instr_pc_ID = pc_ID;
     assign illegal_instr_encoding_ID = instr_ID;
+    assign csr_implemented_ID = csr_is_implemented(csr_addr_ID);
 
 // ================= ID/EX 流水线寄存器 ===================
 
@@ -453,6 +476,7 @@ module CPU_TOP (
 
     assign shadow_mem_active_EX = valid_EX && current_sse_enabled &&
                                   ((sl_type_EX == `MEM_SSPUSH) || (sl_type_EX == `MEM_SSPOPCHK));
+    assign csr_implemented_EX = csr_is_implemented(csr_addr_EX);
     assign sl_type_effective_EX =
         shadow_mem_active_EX ? sl_type_EX :
         (((sl_type_EX == `MEM_SSPUSH) || (sl_type_EX == `MEM_SSPOPCHK)) ? `MEM_NOP : sl_type_EX);
@@ -588,7 +612,7 @@ module CPU_TOP (
         .clk            (clk),
         .rst_n          (rst_n),
         // CSR instruction interface
-        .csr_we         (is_csr_instr_EX && valid_EX && csr_write_intent_EX),
+        .csr_we         (is_csr_instr_EX && valid_EX && csr_write_intent_EX && csr_implemented_EX),
         .csr_addr       (csr_addr_EX),
         .csr_wdata      (csr_wdata_EX),
         .csr_op         (csr_op_EX),

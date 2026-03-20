@@ -1,7 +1,7 @@
 # EsCute 极简五级流水线RV32I实现
 
 
-本分支在 Zmmul 的基础上，补充了 [CSR.sv](user/src/CSR.sv) 模块与基础特权级支持，用于实现 CSR 相关指令、基本的 U/S/M-Mode，以及 Zicfiss / Zicfilp 控制流完整性扩展，并移植了 CoreMark 基准测试以测试性能与验证完整性。
+本分支在 CSR 的基础上，补充了 [CSR.sv](user/src/CSR.sv) 模块与基础特权级支持，用于实现 CSR 相关指令、基本的 U/S/M-Mode，以及 Zicfiss / Zicfilp 控制流完整性扩展，并移植了 CoreMark 基准测试以测试性能与验证完整性。
 
 - [x] 实现RV32I指令集的五级流水线CPU  
 - [x] 支持流水线停顿与数据前推  
