@@ -116,10 +116,10 @@ wsl zsh -ilc "cd /mnt/e/MyRV_DIDE/user/data/c/rop_example && make clean && make 
 
 - `tb_CPU_TOP` 只打印非零寄存器，因此 `x29 = 0` 的成功态不会显示出来
 - 本文引用的日志来自：
-  - [prj/run/jop_zicfilp_on.log](prj/run/jop_zicfilp_on.log)
-  - [prj/run/jop_zicfilp_off.log](prj/run/jop_zicfilp_off.log)
-  - [prj/run/rop_zicfiss_on.log](prj/run/rop_zicfiss_on.log)
-  - [prj/run/rop_zicfiss_off.log](prj/run/rop_zicfiss_off.log)
+  - [user/data/c/jop_example/on.log](user/data/c/jop_example/on.log)
+  - [user/data/c/jop_example/off.log](user/data/c/jop_example/off.log)
+  - [user/data/c/rop_example/on.log](user/data/c/rop_example/on.log)
+  - [user/data/c/rop_example/off.log](user/data/c/rop_example/off.log)
 
 ## 5. 程序实现细节
 
@@ -195,7 +195,8 @@ wsl zsh -ilc "cd /mnt/e/MyRV_DIDE/user/data/c/rop_example && make clean && make 
 
 日志：
 
-- [prj/run/jop_zicfilp_on.log](prj/run/jop_zicfilp_on.log)
+  - [user/data/c/jop_example/on.log](user/data/c/jop_example/on.log)
+
 
 结论：
 
@@ -212,7 +213,8 @@ wsl zsh -ilc "cd /mnt/e/MyRV_DIDE/user/data/c/rop_example && make clean && make 
 
 日志：
 
-- [prj/run/jop_zicfilp_off.log](prj/run/jop_zicfilp_off.log)
+  - [user/data/c/jop_example/off.log](user/data/c/jop_example/off.log)
+
 
 结论：
 
@@ -227,7 +229,8 @@ wsl zsh -ilc "cd /mnt/e/MyRV_DIDE/user/data/c/rop_example && make clean && make 
 
 日志：
 
-- [prj/run/rop_zicfiss_on.log](prj/run/rop_zicfiss_on.log)
+  - [user/data/c/rop_example/on.log](user/data/c/rop_example/on.log)
+
 
 结论：
 
@@ -244,7 +247,8 @@ wsl zsh -ilc "cd /mnt/e/MyRV_DIDE/user/data/c/rop_example && make clean && make 
 
 日志：
 
-- [prj/run/rop_zicfiss_off.log](prj/run/rop_zicfiss_off.log)
+  - [user/data/c/rop_example/off.log](user/data/c/rop_example/off.log)
+
 
 结论：
 

@@ -158,7 +158,7 @@ module tb_CPU_TOP;
         $display("========================================");
 
         // 运行一段时间让 CPU 执行指令
-        #10000;
+        #2000;
 
         $display("========================================");
         $display("Simulation finished at time %0t", $time);
@@ -257,7 +257,7 @@ module tb_CPU_TOP;
 
     // 超时保护
     initial begin
-        #100000;  // 50us 超时
+        #5000;  // 50us 超时
         $display("ERROR: Simulation timeout!");
         $finish;
     end
