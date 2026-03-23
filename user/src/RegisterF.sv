@@ -11,10 +11,6 @@ module RegisterF (
     input  logic [ 4:0] wR,
     // 写数据端口1 (主流水线)
     input  logic [31:0] wD,
-    // 写端口2 (乘法器)
-    input  logic        rf_we2,
-    input  logic [ 4:0] wR2,
-    input  logic [31:0] wD2,
     // 读数据端口
     output logic [31:0] rD1,
     output logic [31:0] rD2,
@@ -29,18 +25,10 @@ module RegisterF (
         rf_in[0] = '0;  // 初始 x0 = 0
     end
 
-    // 写入使用时序逻辑 - 支持双写端口
-    // 当两个端口同时写入同一寄存器时主流水线端口优先
-    // 因乘法为长指令 后写回的短指令在时序上更靠后因此结果更新
-    // 应当采用更新的寄存器值
+    // 写入使用时序逻辑 - 单写回端口
     always_ff @(posedge clk) begin
-        // 主流水线写端口
         if (rf_we && wR != 5'd0) begin
             rf_in[wR] <= wD;
-        end
-        // 乘法器写端口（优先级更低）
-        if (rf_we2 && wR2 != 5'd0 && !(rf_we && wR == wR2)) begin
-            rf_in[wR2] <= wD2;
         end
     end
 

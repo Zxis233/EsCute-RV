@@ -11,7 +11,7 @@ AS = riscv64-unknown-elf-as
 
 # ===== RV32 baremetal flags =====
 PORT_CFLAGS = -O2 -g
-ARCH_FLAGS  = -march=rv32i_zicsr_zmmul_zicfiss_zicfilp -mabi=ilp32
+ARCH_FLAGS  = -march=rv32i_zicsr_zmmul_zicfilp_zicfiss -mabi=ilp32
 
 # freestanding / no libc
 BAREMETAL_FLAGS = -ffreestanding -fno-builtin -nostdlib -nostartfiles 

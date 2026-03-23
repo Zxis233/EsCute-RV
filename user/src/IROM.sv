@@ -63,8 +63,8 @@ module IROM #(
             ;
             rom_file =
             // "rv32ui-p-lw"
-            // "full_test"
-            "zicfi_rv32_test"
+            "full_test"
+            // "zicfi_rv32_test"
             // "mul"
             // "addi"
             ;

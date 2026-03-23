@@ -1,6 +1,6 @@
 /*
- * 软件除法和取模实现
- * 适用于只有硬件乘法的 RISC-V CPU
+ * 软件乘法、除法和取模实现
+ * 适用于缺少对应硬件指令的 RISC-V CPU
  */
 
 // 32位无符号除法（长除法算法）
@@ -185,3 +185,44 @@ long long __moddi3(long long dividend, long long divisor)
 
     return sign * (long long)result;
 }
+
+/*
+// 32位乘法（移位加法算法，结果保留低32位）
+int __mulsi3(int multiplicand, int multiplier)
+{
+    unsigned int a      = (unsigned int)multiplicand;
+    unsigned int b      = (unsigned int)multiplier;
+    unsigned int result = 0;
+
+    while (b != 0)
+    {
+        if (b & 1U)
+            result += a;
+
+        a <<= 1;
+        b >>= 1;
+    }
+
+    return (int)result;
+}
+
+// 64位乘法（移位加法算法，结果保留低64位）
+long long __muldi3(long long multiplicand, long long multiplier)
+{
+    unsigned long long a      = (unsigned long long)multiplicand;
+    unsigned long long b      = (unsigned long long)multiplier;
+    unsigned long long result = 0;
+
+    while (b != 0)
+    {
+        if (b & 1ULL)
+            result += a;
+
+        a <<= 1;
+        b >>= 1;
+    }
+
+    return (long long)result;
+}
+
+*/

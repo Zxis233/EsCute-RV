@@ -128,7 +128,7 @@ module HazardUnit (
     logic mul_use_hazard;
     logic mul_struct_hazard;
     logic mul_waw_hazard;
-    logic pure_waw_conflict;
+    logic mul_commit_serialize_hazard;
 
     // 结构冒险：S1被占用时，新的乘法指令不能进入
     assign mul_struct_hazard = is_mul_instr_ID && mul_stage_busy[0];
@@ -169,15 +169,19 @@ module HazardUnit (
                 (mul_rd_all[i] == wR_ID);
         end
 
-        mul_use_hazard    = (|mul_raw_hit_r1) || (|mul_raw_hit_r2);
+        mul_use_hazard = (|mul_raw_hit_r1) || (|mul_raw_hit_r2);
 
         // WAW冒险：只有 WAW + 同时存在RAW读依赖 才需要停顿
-        mul_waw_hazard    = |(mul_waw_conflict & id_reads_mul_rd);
-        pure_waw_conflict = |(mul_waw_conflict & ~id_reads_mul_rd);
+        mul_waw_hazard = |(mul_waw_conflict & id_reads_mul_rd);
     end
 
-    // 纯WAW冲突（无RAW依赖）时，取消MUL对该寄存器的写回
-    assign mul_cancel_rd = pure_waw_conflict ? wR_ID : 5'd0;
+    // 提交顺序修复：
+    // 一旦MUL进入EX或处于独立流水线中，就阻止所有更年轻指令继续前进，
+    // 直到该MUL完成写回。这样老MUL不会被年轻指令越过，也不能被纯WAW优化掉。
+    assign mul_commit_serialize_hazard = is_mul_instr_EX || (|mul_stage_busy);
+
+    // 顺序提交模式下，不再取消老MUL的写回。
+    assign mul_cancel_rd = 5'd0;
 
     // [TODO] 静态/动态分支预测
     logic branch_predicted_result;
@@ -192,7 +196,7 @@ module HazardUnit (
     logic shadow_serialize_hazard;
     assign shadow_serialize_hazard = shadow_serialize_EX || shadow_serialize_MEM || shadow_serialize_WB;
     assign any_hazard = load_use_hazard || mul_use_hazard || mul_struct_hazard || mul_waw_hazard ||
-                        shadow_serialize_hazard;
+                        mul_commit_serialize_hazard || shadow_serialize_hazard;
 
     always_comb begin
         keep_pc     = any_hazard;

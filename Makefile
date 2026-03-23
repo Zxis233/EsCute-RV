@@ -134,7 +134,7 @@ coremark_test:
 	@echo "运行测试: ${TESTCASE}"
 	@echo "测试文件: ${SIM_DIR}/user/data/hex/${TESTCASE}.hex"
 	@echo "========================================"
-	@rm -f ./*.elf ./*.SText
+# 	@rm -f ./*.elf ./*.SText
 # 	@echo "[1/3] 编译生成 ${TESTCASE}.elf ..."
 # 	@riscv64-unknown-elf-gcc \
 # 		-march=rv32i_zicsr_zmmul -mabi=ilp32 \

@@ -22,6 +22,9 @@ module CPU_TOP (
     logic [31:0]  instr_IF,  instr_ID,  instr_EX,  instr_MEM,  instr_WB;
     logic [31:0] load_data_WB;
     logic [31:0] rf_wd_WB_from_ALU;
+    logic        rf_we_commit;
+    logic [ 4:0] wR_commit;
+    logic [31:0] rf_wd_commit;
 
     logic [4:0]             alu_op_ID, alu_op_EX;
 
@@ -119,6 +122,7 @@ module CPU_TOP (
     logic [ 3:0] sl_type_effective_EX;
     logic [31:0] shadow_addr_EX;
     logic        shadow_mem_active_EX;
+    logic        mul_commit_serialize_active;
     logic        shadow_serialize_EX;
     logic        shadow_serialize_MEM;
     logic        shadow_serialize_WB;
@@ -212,14 +216,10 @@ module CPU_TOP (
     RegisterF u_registerf (
         .clk   (clk),
         // .rst_n(rst_n),
-        // 主流水线写端口
-        .rf_we (rf_we_WB),
-        .wR    (wR_WB),
-        .wD    (rf_wd_WB_from_ALU_or_DRAM),
-        // 乘法器写端口
-        .rf_we2(mul_rf_we_o),
-        .wR2   (mul_rd_o),
-        .wD2   (mul_result),
+        // 统一提交写端口
+        .rf_we (rf_we_commit),
+        .wR    (wR_commit),
+        .wD    (rf_wd_commit),
         // 读地址端口
         .rR1   (rR1),
         .rR2   (rR2),
@@ -271,11 +271,8 @@ module CPU_TOP (
 
     always_comb begin
         x7_effective_ID = x7_rf_ID;
-        if (mul_valid_o && mul_rf_we_o && (mul_rd_o == 5'd7)) begin
-            x7_effective_ID = mul_result;
-        end
-        if (rf_we_WB && (wR_WB == 5'd7)) begin
-            x7_effective_ID = rf_wd_WB_from_ALU_or_DRAM;
+        if (rf_we_commit && (wR_commit == 5'd7)) begin
+            x7_effective_ID = rf_wd_commit;
         end
         if (rf_we_MEM && (wR_MEM == 5'd7)) begin
             x7_effective_ID = rf_wd_MEM;
@@ -539,12 +536,14 @@ module CPU_TOP (
     assign exception_valid_EX = (instr_misaligned_EX || load_misaligned_EX ||
                                  store_misaligned_EX || shadow_access_fault_EX ||
                                  is_ecall_EX) && valid_EX;
+    assign mul_commit_serialize_active = is_mul_instr_EX || mul_busy;
     assign redirect_from_ex_stage = take_branch_normal ||
                                     exception_valid_EX ||
                                     (is_mret_EX && valid_EX) ||
                                     (is_sret_EX && valid_EX);
     assign flushes_id_exception_ID = redirect_from_ex_stage || sspopchk_fault_WB ||
-                                     shadow_serialize_EX || shadow_serialize_MEM || shadow_serialize_WB;
+                                     mul_commit_serialize_active || shadow_serialize_EX ||
+                                     shadow_serialize_MEM || shadow_serialize_WB;
     assign software_check_exception_effective_ID =
         software_check_exception_ID && !flushes_id_exception_ID;
     assign illegal_instr_exception_effective_ID =
@@ -839,10 +838,9 @@ module CPU_TOP (
     assign shadow_serialize_WB = valid_WB &&
                                  ((sl_type_WB == `MEM_SSPUSH) || (sl_type_WB == `MEM_SSPOPCHK));
 
-    // 回写数据来源选择MUX
+    // 主流水线WB数据选择
     // 对于同步DRAM，DRAM的spo已经是寄存器输出，在WB级直接使用以避免多余延迟
     // DRAM_output_data在整个WB周期内保持稳定，可以安全地被寄存器堆采样
-    // 现在使用双写端口寄存器堆，主流水线和乘法器可以同时写回
     always_comb begin
         if (wd_sel_WB == `WD_SEL_FROM_DRAM) begin
             rf_wd_WB_from_ALU_or_DRAM = load_data_WB;
@@ -851,22 +849,25 @@ module CPU_TOP (
         end
     end
 
-    // rf_wd_WB保留用于前递（需要考虑乘法结果）
-    logic [31:0] rf_wd_WB_final;
-    logic mul_result_forwarded;
+    // 单写口提交仲裁：
+    // 当前顺序提交实现保证MUL完成时不会与主流水线WB同拍冲突。
     always_comb begin
-        mul_result_forwarded = mul_valid_o && mul_rf_we_o && (mul_rd_o == rR1 || mul_rd_o == rR2);
-        if (mul_result_forwarded) begin
-            // 乘法结果用于前递
-            rf_wd_WB_final = mul_result;
-        end else if (wd_sel_WB == `WD_SEL_FROM_DRAM) begin
-            rf_wd_WB_final = load_data_WB;
-        end else begin
-            rf_wd_WB_final = rf_wd_WB_from_ALU;
+        rf_we_commit = 1'b0;
+        wR_commit    = 5'b0;
+        rf_wd_commit = 32'b0;
+
+        if (rf_we_WB) begin
+            rf_we_commit = 1'b1;
+            wR_commit    = wR_WB;
+            rf_wd_commit = rf_wd_WB_from_ALU_or_DRAM;
+        end else if (mul_rf_we_o) begin
+            rf_we_commit = 1'b1;
+            wR_commit    = mul_rd_o;
+            rf_wd_commit = mul_result;
         end
     end
 
-    assign rf_wd_WB = rf_wd_WB_final;
+    assign rf_wd_WB = rf_wd_WB_from_ALU_or_DRAM;
 
     // 冒险控制单元
 
@@ -947,6 +948,10 @@ module CPU_TOP (
             else $error("[FATAL] ECALL/MRET/SRET conflict in ID stage");
             assert (check_csr_EX < 2'd2)
             else $error("[FATAL] ECALL/MRET/SRET conflict in EX stage");
+
+            // 单写口提交约束：顺序提交模式下MUL与主流水线WB不应同拍有效
+            assert (!(rf_we_WB && mul_rf_we_o))
+            else $error("[FATAL] WB and MUL commit conflict on single write port");
         end
     end
 
