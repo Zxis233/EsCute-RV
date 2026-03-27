@@ -4,6 +4,8 @@
 `define DEBUG 
 
 `define REG_FILE u_CPU_TOP.u_registerf
+`define CSR_FILE u_CPU_TOP.u_CSR
+
 // verilog_format: off
 module coremark;
 
@@ -37,40 +39,111 @@ module coremark;
                  x16, x17, x18, x19, x20, x21, x22, x23,
                  x24, x25, x26, x27, x28, x29, x30, x31;
 
+    // 机器级 CSR
+    logic [31:0] mstatus;
+    logic [31:0] mstatush;
+    logic [31:0] mtvec;
+    logic [31:0] mepc;
+    logic [31:0] mcause;
+    logic [31:0] mscratch;
+    logic [31:0] mtval;
+    logic [31:0] mie;
+    logic [31:0] mip;
+    logic [31:0] misa;
+    logic [31:0] medeleg;
+    logic [31:0] mideleg;
+    logic [31:0] menvcfg;
+    logic [31:0] mseccfg;
+
+    // 监督级 CSR
+    logic [31:0] stvec;
+    logic [31:0] sepc;
+    logic [31:0] scause;
+    logic [31:0] sscratch;
+    logic [31:0] stval;
+    logic [31:0] satp;
+    logic [31:0] senvcfg;
+
+    // ssp
+    logic [31:0] ssp;
+    logic [ 1:0] s_priv_lvl;
+    // elp
+    logic        elp_expected;
+    // enable
+    logic        sse_enabled;
+    logic        lpe_enabled;
+    //
+    logic        lpad_pass;
+    logic        sspopchk_success;
+
     always_comb begin
-        x0  = `REG_FILE.rf_in[0];
-        x1  = `REG_FILE.rf_in[1];
-        x2  = `REG_FILE.rf_in[2];
-        x3  = `REG_FILE.rf_in[3];
-        x4  = `REG_FILE.rf_in[4];
-        x5  = `REG_FILE.rf_in[5];
-        x6  = `REG_FILE.rf_in[6];
-        x7  = `REG_FILE.rf_in[7];
-        x8  = `REG_FILE.rf_in[8];
-        x9  = `REG_FILE.rf_in[9];
-        x10 = `REG_FILE.rf_in[10];
-        x11 = `REG_FILE.rf_in[11];
-        x12 = `REG_FILE.rf_in[12];
-        x13 = `REG_FILE.rf_in[13];
-        x14 = `REG_FILE.rf_in[14];
-        x15 = `REG_FILE.rf_in[15];
-        x16 = `REG_FILE.rf_in[16];
-        x17 = `REG_FILE.rf_in[17];
-        x18 = `REG_FILE.rf_in[18];
-        x19 = `REG_FILE.rf_in[19];
-        x20 = `REG_FILE.rf_in[20];
-        x21 = `REG_FILE.rf_in[21];
-        x22 = `REG_FILE.rf_in[22];
-        x23 = `REG_FILE.rf_in[23];
-        x24 = `REG_FILE.rf_in[24];
-        x25 = `REG_FILE.rf_in[25];
-        x26 = `REG_FILE.rf_in[26];
-        x27 = `REG_FILE.rf_in[27];
-        x28 = `REG_FILE.rf_in[28];
-        x29 = `REG_FILE.rf_in[29];
-        x30 = `REG_FILE.rf_in[30];
-        x31 = `REG_FILE.rf_in[31];
+        x0               = `REG_FILE.rf_in[0];
+        x1               = `REG_FILE.rf_in[1];
+        x2               = `REG_FILE.rf_in[2];
+        x3               = `REG_FILE.rf_in[3];
+        x4               = `REG_FILE.rf_in[4];
+        x5               = `REG_FILE.rf_in[5];
+        x6               = `REG_FILE.rf_in[6];
+        x7               = `REG_FILE.rf_in[7];
+        x8               = `REG_FILE.rf_in[8];
+        x9               = `REG_FILE.rf_in[9];
+        x10              = `REG_FILE.rf_in[10];
+        x11              = `REG_FILE.rf_in[11];
+        x12              = `REG_FILE.rf_in[12];
+        x13              = `REG_FILE.rf_in[13];
+        x14              = `REG_FILE.rf_in[14];
+        x15              = `REG_FILE.rf_in[15];
+        x16              = `REG_FILE.rf_in[16];
+        x17              = `REG_FILE.rf_in[17];
+        x18              = `REG_FILE.rf_in[18];
+        x19              = `REG_FILE.rf_in[19];
+        x20              = `REG_FILE.rf_in[20];
+        x21              = `REG_FILE.rf_in[21];
+        x22              = `REG_FILE.rf_in[22];
+        x23              = `REG_FILE.rf_in[23];
+        x24              = `REG_FILE.rf_in[24];
+        x25              = `REG_FILE.rf_in[25];
+        x26              = `REG_FILE.rf_in[26];
+        x27              = `REG_FILE.rf_in[27];
+        x28              = `REG_FILE.rf_in[28];
+        x29              = `REG_FILE.rf_in[29];
+        x30              = `REG_FILE.rf_in[30];
+        x31              = `REG_FILE.rf_in[31];
+
+        // Add zicfi registers
+
+        mstatus          = `CSR_FILE.mstatus;
+        mstatush         = `CSR_FILE.mstatush;
+        mtvec            = `CSR_FILE.mtvec;
+        mepc             = `CSR_FILE.mepc;
+        mcause           = `CSR_FILE.mcause;
+        mscratch         = `CSR_FILE.mscratch;
+        mtval            = `CSR_FILE.mtval;
+        mie              = `CSR_FILE.mie;
+        mip              = `CSR_FILE.mip;
+        misa             = `CSR_FILE.misa;
+        medeleg          = `CSR_FILE.medeleg;
+        mideleg          = `CSR_FILE.mideleg;
+        menvcfg          = `CSR_FILE.menvcfg;
+        mseccfg          = `CSR_FILE.mseccfg;
+
+        stvec            = `CSR_FILE.stvec;
+        sepc             = `CSR_FILE.sepc;
+        scause           = `CSR_FILE.scause;
+        sscratch         = `CSR_FILE.sscratch;
+        stval            = `CSR_FILE.stval;
+        satp             = `CSR_FILE.satp;
+        senvcfg          = `CSR_FILE.senvcfg;
+
+        ssp              = u_CPU_TOP.ssp_value;
+        s_priv_lvl       = u_CPU_TOP.current_priv_mode;
+        elp_expected     = u_CPU_TOP.elp_expected;
+        sse_enabled      = u_CPU_TOP.current_sse_enabled;
+        lpe_enabled      = u_CPU_TOP.current_lpe_enabled;
+        lpad_pass        = u_CPU_TOP.lpad_pass_ID;
+        sspopchk_success = u_CPU_TOP.sspopchk_success_WB;
     end
+
 
 // 时钟生成 (100MHz, 周期 10ns)、
     // verilog_format: on
@@ -112,9 +185,9 @@ module coremark;
 `ifdef VCD_FILEPATH
                 $dumpfile({"../../", `VCD_FILEPATH});
 `else
-                $dumpfile("wave.vcd");
+                $dumpfile("coremark.vcd");
 `endif
-                $dumpvars;
+                $dumpvars(1, coremark);
             end
         end
 

@@ -42,16 +42,16 @@ static void exit_sim(ee_u32 code)
         NULL.
 */
 
-static inline ee_u64 read_mcycle64(void)
+static inline ee_u64 read_cycle64(void)
 {
     ee_u32 hi1, lo, hi2;
     /* Atomic read sequence: read high, low, high again.
      * If high changed, low overflowed, so retry. */
     do
     {
-        __asm__ volatile("csrr %0, mcycleh" : "=r"(hi1));
-        __asm__ volatile("csrr %0, mcycle" : "=r"(lo));
-        __asm__ volatile("csrr %0, mcycleh" : "=r"(hi2));
+        __asm__ volatile("csrr %0, cycleh" : "=r"(hi1));
+        __asm__ volatile("csrr %0, cycle" : "=r"(lo));
+        __asm__ volatile("csrr %0, cycleh" : "=r"(hi2));
     } while (hi1 != hi2);
     return ((ee_u64)hi1 << 32) | (ee_u64)lo;
 }
@@ -143,7 +143,7 @@ main(void)
     ee_printf("\n_end=0x%08x stack_top=0x%08x sp=0x%08x\n",
               &_end, &_stack_top, sp);
     ee_u64 first_time;
-    first_time = read_mcycle64();
+    first_time = read_cycle64();
     ee_u32 hi  = (ee_u32)(first_time >> 32);
     ee_u32 lo  = (ee_u32)(first_time & 0xffffffffu);
     ee_printf("Now Time: 0x%08x%08x\n", hi, lo);
@@ -431,7 +431,7 @@ for (i = 0; i < MULTITHREAD; i++)
         ee_printf(
             "Correct operation validated. See README.md for run and reporting "
             "rules.\n");
-        first_time = read_mcycle64();
+        first_time = read_cycle64();
         hi         = (ee_u32)(first_time >> 32);
         lo         = (ee_u32)(first_time & 0xffffffffu);
         ee_printf("Now Time: 0x%08x%08x\n", hi, lo);

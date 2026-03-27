@@ -141,11 +141,11 @@ vvp prj/run/tb_zicfi.vvp
 ## CoreMark性能测试结果
 
 ```
-_end=0x000030c0 stack_top=0x0000ff00 sp=0x0000f6a0
-Now Time: 0x00000000000004d7
+_end=0x00003134 stack_top=0x0000ff00 sp=0x0000f6a0
+Now Time: 0x0000000000000509
 2K performance run parameters for coremark.
 CoreMark Size    : 666
-Total ticks      : 5184678
+Total ticks      : 5292594
 Total time (secs): 10
 Iterations/Sec   : 1
 Iterations       : 10
@@ -158,8 +158,8 @@ seedcrc          : 0xe9f5
 [0]crcstate      : 0x8e3a
 [0]crcfinal      : 0xfcaf
 Correct operation validated. See README.md for run and reporting rules.
-Now Time: 0x00000000004fb6cc
-52248755000| [PASS] |  Finished
+Now Time: 0x0000000000515f76
+53336075000| [PASS] |  Finished  
 ```
 
 

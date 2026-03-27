@@ -49,7 +49,7 @@ volatile ee_s32 seed5_volatile = 0;
  * mcycle:  0xB00 (low 32 bits)
  * mcycleh: 0xB80 (high 32 bits)
  */
-static inline ee_u64 read_mcycle64(void)
+static inline ee_u64 read_cycle64(void)
 {
     ee_u32 hi1, lo, hi2;
     /* Atomic read sequence: read high, low, high again.
@@ -72,7 +72,7 @@ static inline ee_u64 read_mcycle64(void)
 CORETIMETYPE
 barebones_clock()
 {
-    return read_mcycle64();
+    return read_cycle64();
 }
 
 /* Define : TIMER_RES_DIVIDER

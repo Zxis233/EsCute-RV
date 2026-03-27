@@ -26,8 +26,11 @@ SECTIONS
     *(COMMON)
   }
 
+  _shadow_stack_top = 0x0000C000;
   _stack_top = 0x0000FF00;
   _end = .;
 }
 
 ASSERT(_end < _stack_top - 0x1000, "ERROR: program too large / stack overlap!");
+ASSERT(_end < _shadow_stack_top - 0x1000, "ERROR: program too large / shadow stack overlap!");
+ASSERT(_shadow_stack_top < _stack_top - 0x1000, "ERROR: shadow stack too close to regular stack!");
