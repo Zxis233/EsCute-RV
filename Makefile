@@ -2,252 +2,44 @@
 # RISC-V CPU 自动化测试 Makefile
 # ========================================
 
-# 扩展名
-FOLDER		  	 := hex
+SIM ?= iverilog
+SUPPORTED_SIMS := iverilog verilator
 
-# 目录定义
-SIM_DIR      := $(shell pwd)
-RUN_DIR      := ${SIM_DIR}/prj/run
-SRC_DIR      := ${SIM_DIR}/user/src
-SIM_TB_DIR   := ${SIM_DIR}/user/data/isa
-TEST_DIR     := ${SIM_DIR}/user/data/isa/${FOLDER}
-
-# 顶层测试文件
-TB_TOP       := ${SIM_TB_DIR}/test_tb.sv
-
-# 测试配置
-TESTCASE     := rv32ui-p-add
-
-# 仿真选项
-DUMPWAVE     := 1
-PRINT_INFO   := 0
-
-# 仿真工具配置
-SIM_TOOL     := iverilog
-WAV_TOOL     := gtkwave
-
-# 获取所有源文件
-RTL_FILES    := $(wildcard ${SRC_DIR}/*.sv)
-RTL_FILES    := $(filter-out ${SRC_DIR}/Makefile, ${RTL_FILES})
-TB_FILES     := ${TB_TOP}
-
-# iverilog 编译选项
-ifeq ($(SIM_TOOL),iverilog)
-    SIM_OPTIONS := -g2012 -Wall
-    SIM_OPTIONS += -I ${SRC_DIR}
-    SIM_OPTIONS += -I ${SRC_DIR}/include
-    SIM_OPTIONS += -o ${RUN_DIR}/test_tb.vvp
-    SIM_EXEC    := vvp ${RUN_DIR}/test_tb.vvp
+ifeq ($(filter $(SIM),$(SUPPORTED_SIMS)),)
+$(error 不支持的 SIM='$(SIM)'，可选值: $(SUPPORTED_SIMS))
 endif
 
-# VCS 编译选项 (备选)
-ifeq ($(SIM_TOOL),vcs)
-    SIM_OPTIONS := -sverilog -full64 -debug_access+all
-    SIM_OPTIONS += -timescale=1ns/1ps
-    SIM_OPTIONS += +incdir+${SRC_DIR}
-    SIM_OPTIONS += +incdir+${SRC_DIR}/include
-    SIM_OPTIONS += -o ${RUN_DIR}/simv
-    SIM_EXEC    := ${RUN_DIR}/simv
+FOLDER        ?= hex
+
+SIM_DIR       := $(abspath $(CURDIR))
+SRC_DIR       := $(SIM_DIR)/user/src
+SIM_TB_DIR    := $(SIM_DIR)/user/sim
+ISA_TB_DIR    := $(SIM_DIR)/user/data/isa
+TEST_DIR      := $(ISA_TB_DIR)/$(FOLDER)
+
+ISA_TB_TOP        := $(ISA_TB_DIR)/test_tb.sv
+VERILATOR_TB_TOP  := $(SIM_TB_DIR)/tb_Verilator.sv
+COREMARK_TB       := $(SIM_TB_DIR)/coremark.sv
+COREMARK_HEX      := $(SIM_DIR)/coremark/escute/coremark.hex
+
+TESTCASE      ?= rv32ui-p-add
+PRINT_INFO    ?= 0
+WAV_TOOL      ?= gtkwave
+
+RTL_FILES     := $(wildcard $(SRC_DIR)/*.sv)
+RTL_FILES     := $(filter-out $(SRC_DIR)/Makefile, $(RTL_FILES))
+ALL_TESTS     := $(basename $(notdir $(wildcard $(TEST_DIR)/*.hex)))
+
+ifeq ($(suffix $(TESTCASE)),.hex)
+ifneq ($(findstring /,$(TESTCASE)),)
+TEST_HEX      := $(abspath $(TESTCASE))
+else
+TEST_HEX      := $(TEST_DIR)/$(TESTCASE)
+endif
+else
+TEST_HEX      := $(TEST_DIR)/$(TESTCASE).hex
 endif
 
-# 波形文件
-WAV_FILE     := ${RUN_DIR}/wave.vcd
+.DEFAULT_GOAL := help
 
-# 所有测试用例 (从 hex 目录获取)
-ALL_TESTS    := $(basename $(notdir $(wildcard ${TEST_DIR}/*.hex)))
-
-# ========================================
-# 主要目标
-# ========================================
-
-.PHONY: all clean compile run wave help list_tests regress
-
-all: run
-
-help:
-	@echo "=========================================="
-	@echo "RISC-V CPU 自动化测试 Makefile"
-	@echo "=========================================="
-	@echo "使用方法:"
-	@echo "  make run              - 编译并运行默认测试"
-	@echo "  make compile          - 仅编译"
-	@echo "  make wave             - 查看波形"
-	@echo "  make list_tests       - 列出所有可用测试"
-	@echo "  make regress          - 运行所有测试用例"
-	@echo "  make clean            - 清理生成文件"
-	@echo ""
-	@echo "运行特定测试:"
-	@echo "  make run TESTCASE=<test_name>"
-	@echo ""
-	@echo "示例:"
-	@echo "  make run TESTCASE=simple_test"
-	@echo "  make run TESTCASE=full_test DUMPWAVE=0"
-	@echo "=========================================="
-
-list_tests:
-	@echo "可用的测试用例:"
-	@for test in $(ALL_TESTS); do echo "  - $$test"; done
-
-# ========================================
-# 编译
-# ========================================
-
-${RUN_DIR}:
-	@echo "创建运行目录: ${RUN_DIR}"
-	@mkdir -p ${RUN_DIR}
-
-compile: ${RUN_DIR}
-	@echo "========================================"
-	@echo "编译仿真文件..."
-	@echo "仿真工具: ${SIM_TOOL}"
-	@echo "源文件目录: ${SRC_DIR}"
-	@echo "测试文件: ${TB_TOP}"
-	@echo "========================================"
-	${SIM_TOOL} ${SIM_OPTIONS} ${TB_FILES} ${RTL_FILES}
-	@echo "编译完成!"
-
-# ========================================
-# 运行仿真
-# ========================================
-
-run:
-	@echo "========================================"
-	@echo "运行测试: ${TESTCASE}"
-	@echo "测试文件: ${TEST_DIR}/${TESTCASE}.hex"
-	@echo "========================================"
-	@if [ ! -f "${TEST_DIR}/${TESTCASE}.hex" ]; then \
-		echo "错误: 测试文件不存在: ${TEST_DIR}/${TESTCASE}.hex"; \
-		echo "请使用 'make list_tests' 查看可用测试"; \
-		exit 1; \
-	fi
-	@${SIM_TOOL} ${SIM_OPTIONS} ${TB_FILES} ${RTL_FILES} > /dev/null 2>&1
-	@cd ${RUN_DIR} && \
-		${SIM_EXEC} \
-		+TESTCASE=${TEST_DIR}/${TESTCASE}.hex \
-		+DUMPWAVE=${DUMPWAVE} \
-		+PRINT_INFO=${PRINT_INFO} \
-# 		2>&1 | tee ${TESTCASE}.log
-
-
-coremark_test:
-	@echo "========================================"
-	@echo "运行测试: CoreMark Benchmark"
-	@echo "测试文件: ${SIM_DIR}/coremark/escute/coremark.hex"
-	@echo "========================================"
-# 	@rm -f ./*.elf ./*.SText
-# 	@echo "[1/3] 编译生成 ${TESTCASE}.elf ..."
-# 	@riscv64-unknown-elf-gcc \
-# 		-march=rv32i_zicsr_zmmul -mabi=ilp32 \
-# 		-nostdlib -nostartfiles \
-# 		-T coremark/link.ld \
-# 		coremark/start.S coremark/print_test.c \
-# 		-o ${TESTCASE}.elf
-
-# 	@echo "[2/3] 生成 HEX: ${SIM_DIR}/user/data/hex/${TESTCASE}.hex ..."
-# 	@elf2hex 4 8192 ${TESTCASE}.elf > ${SIM_DIR}/user/data/hex/${TESTCASE}.hex
-
-# 	@echo "[3/3] 运行仿真 ..."
-# 	@clear
-	@${SIM_TOOL} ${SIM_OPTIONS} user/sim/coremark.sv ${RTL_FILES} > /dev/null 2>&1
-	@cd ${RUN_DIR} && \
-		${SIM_EXEC} \
-		+TESTCASE=${SIM_DIR}/coremark/escute/coremark.hex \
-		+DUMPWAVE=${DUMPWAVE} \
-		+PRINT_INFO=${PRINT_INFO}
-
-# 		2>&1 | tee ${TESTCASE}.log
-
-# ========================================
-# 波形查看
-# ========================================
-
-wave:
-	@if [ ! -f "${WAV_FILE}" ]; then \
-		echo "错误: 波形文件不存在: ${WAV_FILE}"; \
-		echo "请先运行 'make run' 生成波形"; \
-		exit 1; \
-	fi
-	@echo "打开波形文件: ${WAV_FILE}"
-	${WAV_TOOL} ${WAV_FILE} &
-
-# ========================================
-# 回归测试 (运行所有测试用例)
-# ========================================
-
-regress_prepare: compile
-	@echo "准备回归测试..."
-	@make compile
-	@rm -f ${RUN_DIR}/*.log
-	@rm -f ${RUN_DIR}/regress_summary_${FOLDER}_iverilog.txt
-
-regress_run:
-	@echo "========================================"
-	@echo "运行回归测试 (共 $(words $(ALL_TESTS)) 个测试)"
-	@echo "========================================"
-	@for test in $(ALL_TESTS); do \
-		echo ">>> 测试: $$test"; \
-		make run TESTCASE=$$test DUMPWAVE=0 PRINT_INFO=0 2>&1 | grep -E "\[PASS\]|\[FAIL\]|\[EROR\]" | tee -a ${RUN_DIR}/regress_summary_${FOLDER}_iverilog.txt; \
-	done
-	@echo "========================================"
-	@echo "测试完成! 汇总文件: ${RUN_DIR}/regress_summary_${FOLDER}_iverilog.txt"
-	@echo "========================================"
-
-regress_collect:
-	@echo ""
-	@echo "==========================================="
-	@echo "               回归测试汇总"
-	@echo "==========================================="
-	@echo "     Time | STATUS |  CASE NUM  | PATH"
-	@if [ -f ${RUN_DIR}/regress_summary_${FOLDER}_iverilog.txt ]; then \
-		cat ${RUN_DIR}/regress_summary_${FOLDER}_iverilog.txt; \
-		echo "==========================================="; \
-		echo "总计: $(words $(ALL_TESTS)) 个测试"; \
-		PASS_COUNT=$$(grep -c "\[PASS\]" ${RUN_DIR}/regress_summary_${FOLDER}_iverilog.txt || true); \
-		FAIL_COUNT=$$(grep -c "\[FAIL\]" ${RUN_DIR}/regress_summary_${FOLDER}_iverilog.txt || true); \
-		EROR_COUNT=$$(grep -c "EROR" ${RUN_DIR}/regress_summary_${FOLDER}_iverilog.txt || true); \
-		echo "通过: $$PASS_COUNT"; \
-		echo "失败: $$FAIL_COUNT"; \
-		echo "错误: $$EROR_COUNT"; \
-		echo "==========================================="; \
-	else \
-		echo "没有找到测试结果"; \
-	fi
-
-regress_clear:
-	@clear
-
-regress: regress_prepare regress_clear regress_run regress_collect
-
-# ========================================
-# 清理
-# ========================================
-
-clean:
-	@echo "清理生成文件..."
-	@rm -rf ${RUN_DIR}
-	@rm -f *.vvp *.vcd
-	@echo "清理完成!"
-
-# ========================================
-# 调试信息
-# ========================================
-
-debug_info:
-	@echo "========================================"
-	@echo "调试信息"
-	@echo "========================================"
-	@echo "SIM_DIR:     ${SIM_DIR}"
-	@echo "RUN_DIR:     ${RUN_DIR}"
-	@echo "SRC_DIR:     ${SRC_DIR}"
-	@echo "TEST_DIR:    ${TEST_DIR}"
-	@echo "TB_TOP:      ${TB_TOP}"
-	@echo "TESTCASE:    ${TESTCASE}"
-	@echo "TESTCASE:    ${TESTCASE}"
-	@echo "SIM_TOOL:    ${SIM_TOOL}"
-	@echo "=========================================="
-	@echo "RTL 文件:"
-	@for f in $(RTL_FILES); do echo "  $$f"; done
-	@echo "=========================================="
-	@echo "测试用例:"
-	@for t in $(ALL_TESTS); do echo "  $$t"; done
-	@echo "=========================================="
+include $(SIM).mk
