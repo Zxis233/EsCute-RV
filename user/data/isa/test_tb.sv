@@ -186,10 +186,12 @@ module test_tb;
         end
 
         // 初始化信号
-        rst_n = 0;
+        rst_n = 1'b0;
+        // 保持
+        repeat (3) @(posedge clk);
         // 复位 CPU
-        #5;  // 保持复位 25ns
-        rst_n = 1;
+        @(negedge clk);
+        rst_n = 1'b1;
     end
 
     string testcase;
@@ -219,11 +221,13 @@ module test_tb;
                 default: begin
                 end
             endcase
-        end else if (rst_n && tohost_data != 32'b0) begin
+        end
+        else if (rst_n && tohost_data != 32'b0) begin
             if (tohost_data == 32'd1) begin
                 $display("%10t| [PASS] |\t\t| %20s", $time, testcase);
                 $finish;
-            end else if (tohost_data[0]) begin
+            end
+            else if (tohost_data[0]) begin
                 $display("%10t| [FAIL] |  No.%2d\t| %20s", $time, (tohost_data >> 1), testcase);
                 $finish;
             end

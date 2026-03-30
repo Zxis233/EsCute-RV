@@ -131,8 +131,8 @@ run:
 
 coremark_test:
 	@echo "========================================"
-	@echo "运行测试: ${TESTCASE}"
-	@echo "测试文件: ${SIM_DIR}/user/data/hex/${TESTCASE}.hex"
+	@echo "运行测试: CoreMark Benchmark"
+	@echo "测试文件: ${SIM_DIR}/coremark/escute/coremark.hex"
 	@echo "========================================"
 # 	@rm -f ./*.elf ./*.SText
 # 	@echo "[1/3] 编译生成 ${TESTCASE}.elf ..."
@@ -151,7 +151,7 @@ coremark_test:
 	@${SIM_TOOL} ${SIM_OPTIONS} user/sim/coremark.sv ${RTL_FILES} > /dev/null 2>&1
 	@cd ${RUN_DIR} && \
 		${SIM_EXEC} \
-		+TESTCASE=${SIM_DIR}/user/data/hex/${TESTCASE}.hex \
+		+TESTCASE=${SIM_DIR}/coremark/escute/coremark.hex \
 		+DUMPWAVE=${DUMPWAVE} \
 		+PRINT_INFO=${PRINT_INFO}
 
@@ -178,7 +178,7 @@ regress_prepare: compile
 	@echo "准备回归测试..."
 	@make compile
 	@rm -f ${RUN_DIR}/*.log
-	@rm -f ${RUN_DIR}/regress_summary_${FOLDER}.txt
+	@rm -f ${RUN_DIR}/regress_summary_${FOLDER}_iverilog.txt
 
 regress_run:
 	@echo "========================================"
@@ -186,10 +186,10 @@ regress_run:
 	@echo "========================================"
 	@for test in $(ALL_TESTS); do \
 		echo ">>> 测试: $$test"; \
-		make run TESTCASE=$$test DUMPWAVE=0 PRINT_INFO=0 2>&1 | grep -E "\[PASS\]|\[FAIL\]|\[EROR\]" | tee -a ${RUN_DIR}/regress_summary_${FOLDER}.txt; \
+		make run TESTCASE=$$test DUMPWAVE=0 PRINT_INFO=0 2>&1 | grep -E "\[PASS\]|\[FAIL\]|\[EROR\]" | tee -a ${RUN_DIR}/regress_summary_${FOLDER}_iverilog.txt; \
 	done
 	@echo "========================================"
-	@echo "测试完成! 汇总文件: ${RUN_DIR}/regress_summary_${FOLDER}.txt"
+	@echo "测试完成! 汇总文件: ${RUN_DIR}/regress_summary_${FOLDER}_iverilog.txt"
 	@echo "========================================"
 
 regress_collect:
@@ -198,13 +198,13 @@ regress_collect:
 	@echo "               回归测试汇总"
 	@echo "==========================================="
 	@echo "     Time | STATUS |  CASE NUM  | PATH"
-	@if [ -f ${RUN_DIR}/regress_summary_${FOLDER}.txt ]; then \
-		cat ${RUN_DIR}/regress_summary_${FOLDER}.txt; \
+	@if [ -f ${RUN_DIR}/regress_summary_${FOLDER}_iverilog.txt ]; then \
+		cat ${RUN_DIR}/regress_summary_${FOLDER}_iverilog.txt; \
 		echo "==========================================="; \
 		echo "总计: $(words $(ALL_TESTS)) 个测试"; \
-		PASS_COUNT=$$(grep -c "\[PASS\]" ${RUN_DIR}/regress_summary_${FOLDER}.txt || true); \
-		FAIL_COUNT=$$(grep -c "\[FAIL\]" ${RUN_DIR}/regress_summary_${FOLDER}.txt || true); \
-		EROR_COUNT=$$(grep -c "EROR" ${RUN_DIR}/regress_summary_${FOLDER}.txt || true); \
+		PASS_COUNT=$$(grep -c "\[PASS\]" ${RUN_DIR}/regress_summary_${FOLDER}_iverilog.txt || true); \
+		FAIL_COUNT=$$(grep -c "\[FAIL\]" ${RUN_DIR}/regress_summary_${FOLDER}_iverilog.txt || true); \
+		EROR_COUNT=$$(grep -c "EROR" ${RUN_DIR}/regress_summary_${FOLDER}_iverilog.txt || true); \
 		echo "通过: $$PASS_COUNT"; \
 		echo "失败: $$FAIL_COUNT"; \
 		echo "错误: $$EROR_COUNT"; \

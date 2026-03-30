@@ -165,10 +165,12 @@ module coremark;
             if (tohost_data == 32'd1) begin
                 $display("%10t| [PASS] |  Finished  ", $time);
                 $finish;
-            end else if (tohost_data == 32'd2) begin
+            end
+            else if (tohost_data == 32'd2) begin
                 $display("%10t| [FAIL] |  Finished  ", $time);
                 $finish;
-            end else begin
+            end
+            else begin
                 // 普通字符输出
                 $write("%c", tohost_data[7:0]);
                 $fflush();
@@ -180,22 +182,22 @@ module coremark;
     initial begin
         // 波形文件设置
         integer dumpwave;
-        if ($value$plusargs("DUMPWAVE=%d", dumpwave)) begin
-            if (dumpwave == 1) begin
-`ifdef VCD_FILEPATH
-                $dumpfile({"../../", `VCD_FILEPATH});
-`else
-                $dumpfile("coremark.vcd");
-`endif
-                $dumpvars(1, coremark);
-            end
+        string  wavefile;
+        if (!$value$plusargs("WAVEFILE=%s", wavefile)) begin
+            wavefile = "prj/verilator/coremark.vcd";
+        end
+        if ($value$plusargs("DUMPWAVE=%d", dumpwave) && dumpwave == 1) begin
+            $dumpfile(wavefile);
+            $dumpvars(1, coremark);
         end
 
         // 初始化信号
-        rst_n = 0;
+        rst_n = 1'b0;
+        // 保持
+        repeat (3) @(posedge clk);
         // 复位 CPU
-        #5;  // 保持复位 25ns
-        rst_n = 1;
+        @(negedge clk);
+        rst_n = 1'b1;
     end
 
     string testcase;
@@ -207,8 +209,7 @@ module coremark;
     // 检测异常
     always_ff @(posedge clk) begin
         if (u_CPU_TOP.exception_valid) begin
-            $display("%10t| [EXCEPTION] PC=0x%08h, cause=%d, tval=0x%08h", $time,
-                     u_CPU_TOP.exception_pc, u_CPU_TOP.exception_cause, u_CPU_TOP.exception_tval);
+            $display("%10t| [EXCEPTION] PC=0x%08h, cause=%d, tval=0x%08h", $time, u_CPU_TOP.exception_pc, u_CPU_TOP.exception_cause, u_CPU_TOP.exception_tval);
         end
     end
 
