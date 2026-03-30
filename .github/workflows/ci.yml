@@ -17,11 +17,11 @@ jobs:
       - name: Install iVerilog
         run: |
           sudo apt-get update
-          sudo apt-get install -y iverilog
+          sudo apt-get install -y iverilog colormake
 
       - name: Download and set up RISC-V toolchain
         run: |
-          TOOLCHAIN_URL="https://github.com/Zxis233/riscv-gnu-toolchain/releases/download/build-20260322-150326/riscv-gnu-toolchain_linux.tar.gz"
+          TOOLCHAIN_URL="https://github.com/Zxis233/riscv-gnu-toolchain/releases/download/build-20260330-171745/riscv-gnu-toolchain_linux.tar.gz"
           TOOLCHAIN_ARCHIVE="$RUNNER_TEMP/riscv-gnu-toolchain_linux.tar.gz"
           TOOLCHAIN_DIR="$RUNNER_TEMP/riscv-gnu-toolchain"
 
@@ -29,9 +29,9 @@ jobs:
           mkdir -p "$TOOLCHAIN_DIR"
           tar -xzf "$TOOLCHAIN_ARCHIVE" -C "$TOOLCHAIN_DIR"
 
-          TOOLCHAIN_BIN="$(dirname "$(find "$TOOLCHAIN_DIR" -type f -name riscv64-unknown-elf-gcc -print -quit)")"
+          TOOLCHAIN_BIN="$(dirname "$(find "$TOOLCHAIN_DIR" -type f -name riscv32-unknown-elf-gcc -print -quit)")"
           if [ -z "$TOOLCHAIN_BIN" ] || [ ! -d "$TOOLCHAIN_BIN" ]; then
-            echo "Failed to locate riscv64-unknown-elf-gcc in extracted toolchain"
+            echo "Failed to locate riscv32-unknown-elf-gcc in extracted toolchain"
             exit 1
           fi
 
@@ -42,11 +42,11 @@ jobs:
           cd user/data/isa
           mkdir -p generated
           cd generated
-          make -f ../Makefile src_dir=../ XLEN=32
+          colormake -f ../Makefile src_dir=../ XLEN=32
 
       - name: Run regress and verify pass count
         run: |
-          make regress
+          colormake regress
 
           SUMMARY_FILE="$(find prj/iverilog -maxdepth 1 -type f -name 'regress_summary_*_iverilog.txt' -print -quit)"
           if [ -z "$SUMMARY_FILE" ] || [ ! -f "$SUMMARY_FILE" ]; then
