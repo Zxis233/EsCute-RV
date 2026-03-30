@@ -5,9 +5,9 @@ OFLAG   = -o
 COUT    = -c
 
 # RISC-V toolchain
-CC = riscv64-unknown-elf-gcc
-LD = riscv64-unknown-elf-gcc
-AS = riscv64-unknown-elf-as
+CC = riscv32-unknown-elf-gcc
+LD = riscv32-unknown-elf-gcc
+AS = riscv32-unknown-elf-as
 
 # ===== RV32 baremetal flags =====
 PORT_CFLAGS = -O2 -g
@@ -63,6 +63,6 @@ port_pre% port_post% :
 OPATH = ./
 MKDIR = mkdir -p
 
-LOAD = elf2hex 4 8192 $(OUTFILE) > $(PORT_DIR)/coremark.hex && riscv64-unknown-elf-objdump -d $(OUTFILE) > $(PORT_DIR)/coremark.SText
+LOAD = elf2hex 4 8192 $(OUTFILE) > $(PORT_DIR)/coremark.hex && riscv32-unknown-elf-objdump -d $(OUTFILE) > $(PORT_DIR)/coremark.SText
 # RUN = cd ../ && make coremark_test TESTCASE=coremark 
 RUN = true
