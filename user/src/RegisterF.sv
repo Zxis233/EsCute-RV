@@ -7,13 +7,14 @@ module RegisterF (
     // 读地址端口
     input  logic [ 4:0] rR1,
     input  logic [ 4:0] rR2,
-    // 写地址端口
+    // 写地址端口1 (主流水线)
     input  logic [ 4:0] wR,
-    // 写数据端口
+    // 写数据端口1 (主流水线)
     input  logic [31:0] wD,
     // 读数据端口
     output logic [31:0] rD1,
-    output logic [31:0] rD2
+    output logic [31:0] rD2,
+    output logic [31:0] x7_o
 );
 
     logic [31:0] rf_in[32];  // 32个寄存器 unpacked 维度使用 [32]
@@ -24,15 +25,18 @@ module RegisterF (
         rf_in[0] = '0;  // 初始 x0 = 0
     end
 
-    // 写入使用时序逻辑
+    // 写入使用时序逻辑 - 单写回端口
     always_ff @(posedge clk) begin
-        if (rf_we && wR != 5'd0) rf_in[wR] <= wD;
+        if (rf_we && wR != 5'd0) begin
+            rf_in[wR] <= wD;
+        end
     end
 
     // 读取使用组合逻辑
     always_comb begin
         rD1 = (rR1 == 0) ? {32{1'b0}} : rf_in[rR1];  // x0寄存器恒为0
         rD2 = (rR2 == 0) ? {32{1'b0}} : rf_in[rR2];
+        x7_o = rf_in[7];
     end
 
 endmodule

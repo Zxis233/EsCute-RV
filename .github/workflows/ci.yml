@@ -1,0 +1,66 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  regress:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install iVerilog
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y iverilog colormake
+
+      - name: Download and set up RISC-V toolchain
+        run: |
+          TOOLCHAIN_URL="https://github.com/Zxis233/riscv-gnu-toolchain/releases/download/build-20260330-171745/riscv-gnu-toolchain_linux.tar.gz"
+          TOOLCHAIN_ARCHIVE="$RUNNER_TEMP/riscv-gnu-toolchain_linux.tar.gz"
+          TOOLCHAIN_DIR="$RUNNER_TEMP/riscv-gnu-toolchain"
+
+          curl -L "$TOOLCHAIN_URL" -o "$TOOLCHAIN_ARCHIVE"
+          mkdir -p "$TOOLCHAIN_DIR"
+          tar -xzf "$TOOLCHAIN_ARCHIVE" -C "$TOOLCHAIN_DIR"
+
+          TOOLCHAIN_BIN="$(dirname "$(find "$TOOLCHAIN_DIR" -type f -name riscv32-unknown-elf-gcc -print -quit)")"
+          if [ -z "$TOOLCHAIN_BIN" ] || [ ! -d "$TOOLCHAIN_BIN" ]; then
+            echo "Failed to locate riscv32-unknown-elf-gcc in extracted toolchain"
+            exit 1
+          fi
+
+          echo "$TOOLCHAIN_BIN" >> "$GITHUB_PATH"
+
+      - name: Generate ISA artifacts
+        run: |
+          cd user/data/isa
+          mkdir -p generated
+          cd generated
+          colormake -f ../Makefile src_dir=../ XLEN=32
+
+      - name: Run regress and verify pass count
+        run: |
+          colormake regress
+
+          SUMMARY_FILE="$(find prj/iverilog -maxdepth 1 -type f -name 'regress_summary_*_iverilog.txt' -print -quit)"
+          if [ -z "$SUMMARY_FILE" ] || [ ! -f "$SUMMARY_FILE" ]; then
+            echo "Regression summary file not found"
+            exit 1
+          fi
+
+          TOTAL_COUNT="$(find user/data/isa/hex -maxdepth 1 -type f -name '*.hex' | wc -l)"
+          PASS_COUNT="$(grep -c '\[PASS\]' "$SUMMARY_FILE" || true)"
+
+          echo "Total tests: $TOTAL_COUNT"
+          echo "Passed tests: $PASS_COUNT"
+
+          if [ "$PASS_COUNT" -ne "$TOTAL_COUNT" ]; then
+            echo "Pass count does not match total test count"
+            exit 1
+          fi

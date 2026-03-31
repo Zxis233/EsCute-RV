@@ -1,0 +1,117 @@
+
+zicfi_c_auto.elf：     文件格式 elf32-littleriscv
+
+
+Disassembly of section .text.init:
+
+00000000 <_start>:
+   0:	00010117          	auipc	sp,0x10
+   4:	f0010113          	addi	sp,sp,-256 # ff00 <_stack_top>
+   8:	00000297          	auipc	t0,0x0
+   c:	06028293          	addi	t0,t0,96 # 68 <m_trap_vector>
+  10:	30529073          	csrw	mtvec,t0
+  14:	00c00293          	li	t0,12
+  18:	30a29073          	csrw	0x30a,t0
+  1c:	10a29073          	csrw	0x10a,t0
+  20:	000032b7          	lui	t0,0x3
+  24:	40028293          	addi	t0,t0,1024 # 3400 <SHADOW_TOP>
+  28:	01129073          	csrw	ssp,t0
+  2c:	000022b7          	lui	t0,0x2
+  30:	80028293          	addi	t0,t0,-2048 # 1800 <MSTATUS_MPP_MASK>
+  34:	3002b073          	csrc	mstatus,t0
+  38:	000012b7          	lui	t0,0x1
+  3c:	80028293          	addi	t0,t0,-2048 # 800 <MSTATUS_MPP_S>
+  40:	3002a073          	csrs	mstatus,t0
+  44:	00000297          	auipc	t0,0x0
+  48:	01028293          	addi	t0,t0,16 # 54 <s_mode_entry>
+  4c:	34129073          	csrw	mepc,t0
+  50:	30200073          	mret
+
+00000054 <s_mode_entry>:
+  54:	00010117          	auipc	sp,0x10
+  58:	eac10113          	addi	sp,sp,-340 # ff00 <_stack_top>
+  5c:	0d8000ef          	jal	134 <main>
+  60:	02000513          	li	a0,32
+  64:	0b00006f          	j	114 <finish_fail>
+
+00000068 <m_trap_vector>:
+  68:	342022f3          	csrr	t0,mcause
+  6c:	34102373          	csrr	t1,mepc
+  70:	343023f3          	csrr	t2,mtval
+  74:	00200e93          	li	t4,2
+  78:	0000006f          	j	78 <m_trap_vector+0x10>
+
+Disassembly of section .text:
+
+0000007c <leaf_add7>:
+  7c:	00100713          	li	a4,1
+  80:	00750513          	addi	a0,a0,7
+  84:	16e02a23          	sw	a4,372(zero) # 174 <g_stage>
+  88:	00008067          	ret
+
+0000008c <nonleaf_wrap>:
+  8c:	00000017          	lpad	0x0
+  90:	ce104073          	sspush	ra
+  94:	ff010113          	addi	sp,sp,-16
+  98:	00200713          	li	a4,2
+  9c:	00112623          	sw	ra,12(sp)
+  a0:	16e02a23          	sw	a4,372(zero) # 174 <g_stage>
+  a4:	fd9ff0ef          	jal	7c <leaf_add7>
+  a8:	00c12283          	lw	t0,12(sp)
+  ac:	00150513          	addi	a0,a0,1
+  b0:	01010113          	addi	sp,sp,16
+  b4:	cdc2c073          	sspopchk	t0
+  b8:	00028067          	jr	t0
+
+000000bc <apply_indirect.constprop.0>:
+  bc:	ce104073          	sspush	ra
+  c0:	00300713          	li	a4,3
+  c4:	ff010113          	addi	sp,sp,-16
+  c8:	16e02a23          	sw	a4,372(zero) # 174 <g_stage>
+  cc:	17002783          	lw	a5,368(zero) # 170 <_end>
+  d0:	02800513          	li	a0,40
+  d4:	00112623          	sw	ra,12(sp)
+  d8:	000003b7          	lui	t2,0x0
+  dc:	000780e7          	jalr	a5
+  e0:	00c12283          	lw	t0,12(sp)
+  e4:	00250513          	addi	a0,a0,2
+  e8:	01010113          	addi	sp,sp,16
+  ec:	cdc2c073          	sspopchk	t0
+  f0:	00028067          	jr	t0
+
+000000f4 <finish_success>:
+  f4:	00000017          	lpad	0x0
+  f8:	000067b7          	lui	a5,0x6
+  fc:	00d78793          	addi	a5,a5,13 # 600d <SHADOW_TOP+0x2c0d>
+ 100:	16f02e23          	sw	a5,380(zero) # 17c <g_status>
+ 104:	16a02c23          	sw	a0,376(zero) # 178 <g_result>
+ 108:	00050e13          	mv	t3,a0
+ 10c:	00000e93          	li	t4,0
+ 110:	0000006f          	j	110 <finish_success+0x1c>
+
+00000114 <finish_fail>:
+ 114:	00000017          	lpad	0x0
+ 118:	dead07b7          	lui	a5,0xdead0
+ 11c:	00f567b3          	or	a5,a0,a5
+ 120:	16f02e23          	sw	a5,380(zero) # 17c <g_status>
+ 124:	16a02c23          	sw	a0,376(zero) # 178 <g_result>
+ 128:	00050e13          	mv	t3,a0
+ 12c:	00100e93          	li	t4,1
+ 130:	0000006f          	j	130 <finish_fail+0x1c>
+
+00000134 <main>:
+ 134:	00000017          	lpad	0x0
+ 138:	ce104073          	sspush	ra
+ 13c:	ff010113          	addi	sp,sp,-16
+ 140:	08c00793          	li	a5,140
+ 144:	16f02823          	sw	a5,368(zero) # 170 <_end>
+ 148:	00112623          	sw	ra,12(sp)
+ 14c:	f71ff0ef          	jal	bc <apply_indirect.constprop.0>
+ 150:	00400713          	li	a4,4
+ 154:	16e02a23          	sw	a4,372(zero) # 174 <g_stage>
+ 158:	03200793          	li	a5,50
+ 15c:	00f50663          	beq	a0,a5,168 <main+0x34>
+ 160:	00100513          	li	a0,1
+ 164:	fb1ff0ef          	jal	114 <finish_fail>
+ 168:	00100513          	li	a0,1
+ 16c:	f89ff0ef          	jal	f4 <finish_success>

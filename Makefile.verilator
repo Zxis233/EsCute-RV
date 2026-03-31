@@ -1,0 +1,2 @@
+SIM ?= verilator
+include Makefile

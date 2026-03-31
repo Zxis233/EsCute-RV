@@ -1,25 +1,29 @@
-`timescale 1ns / 1ps
-
 // IROM 行为模型 - 用于仿真
 // 替代 Xilinx IP 核
 
-module IROM (
-    input  logic [13:0] a,   // 地址输入 (14位 = 16K words)
-    output logic [31:0] spo  // 数据输出
+module IROM #(
+    parameter int unsigned ADDR_WIDTH = 14
+) (
+    input  logic [ADDR_WIDTH-1:0] a,   // 地址输入 (14位 = 16K words)
+    output logic [          31:0] spo  // 数据输出
 );
 
     // 指令存储器 - 16K x 32bit
-    logic [31:0] rom_data[16384];
+    logic [31:0] rom_data[1 << ADDR_WIDTH];
+
+`ifdef YOSYS
+    logic [255:0] rom_file;  // 字符串缓冲区
+`else
+    string rom_prefix, rom_file;  // 字符串缓冲区
+    string testcase;
+`endif
 
     // 从文件加载指令
     initial begin
 
         integer i;
-`ifndef YOSYS
-        string rom_file;  // 字符串缓冲区
-`endif
 
-        for (i = 0; i < 16384; i = i + 1) begin
+        for (i = 0; i < 1 << ADDR_WIDTH; i = i + 1) begin
             // rom_data[i] = 32'h00000013;  // NOP
             rom_data[i] = 32'h0d000721;
         end
@@ -28,6 +32,17 @@ module IROM (
 `ifdef YOSYS
         `define IROM_FILE \
         "user/data/hex/full_test.hex"
+        // "user/data/hex/jalr.hex"
+        // "user/data/hex/U.hex"
+        // "user/data/hex/simple_test.hex"
+
+        // "user/data/hex/branch.hex"
+        // "user/data/hex/myFirstTest.hex"
+        // "user/data/hex/no_hazard.hex"
+        // "user/data/hex/loaduse_test.hex"
+        // "user/data/hex/hazard12.hex"
+        // 尝试从文件加载指令
+        // if ($value$plusargs("IROM=%s", rom_file)) begin
         if (1) begin
             $readmemh(`IROM_FILE, rom_data, 0, 16383);
             $display("IROM: Loaded instructions from %s", `IROM_FILE);
@@ -37,17 +52,24 @@ module IROM (
             load_default_program();
         end
 `else
-
-        if (1) begin
-            rom_file =
-            // "user/data/hex/sw_lw.hex"
-            // "user/data/hex/addi.hex"
-            // "user/data/hex/branch.hex"
-            "user/data/hex/full_test.hex"
-
+        if ($value$plusargs("TESTCASE=%s", testcase)) begin
+            // testcase 已经包含完整路径 (从 Makefile 传入)
+            $readmemh(testcase, rom_data, 0, (1 << ADDR_WIDTH) - 1);
+        end
+        else if (1) begin
+            rom_prefix =
+            // "user/data/isa/hex/"
+            "user/data/hex/"
             ;
-            $readmemh(rom_file, rom_data, 0, 16383);
-            $display("IROM: Loaded instructions from %s", rom_file);
+            rom_file =
+            // "rv32ui-p-lw"
+            "full_test"
+            // "zicfi_rv32_test"
+            // "mul"
+            // "addi"
+            ;
+            $readmemh({rom_prefix,rom_file,".hex"}, rom_data, 0, 16383);
+            $display("IROM: Loaded instructions from %s",{rom_prefix,rom_file,".hex"});
         end else begin
             // 如果没有指定文件,加载默认的测试程序
             $display("IROM: Loading default test program");

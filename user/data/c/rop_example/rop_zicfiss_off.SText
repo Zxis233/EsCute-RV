@@ -1,0 +1,115 @@
+
+rop_zicfiss_off.elf：     文件格式 elf32-littleriscv
+
+
+Disassembly of section .text.init:
+
+00000000 <_start>:
+   0:	00010117          	auipc	sp,0x10
+   4:	f0010113          	addi	sp,sp,-256 # ff00 <_stack_top>
+   8:	00000297          	auipc	t0,0x0
+   c:	06028293          	addi	t0,t0,96 # 68 <m_trap_vector>
+  10:	30529073          	csrw	mtvec,t0
+  14:	00c00293          	li	t0,12
+  18:	30a29073          	csrw	0x30a,t0
+  1c:	10a29073          	csrw	0x10a,t0
+  20:	000032b7          	lui	t0,0x3
+  24:	40028293          	addi	t0,t0,1024 # 3400 <SHADOW_TOP>
+  28:	01129073          	csrw	ssp,t0
+  2c:	000022b7          	lui	t0,0x2
+  30:	80028293          	addi	t0,t0,-2048 # 1800 <MSTATUS_MPP_MASK>
+  34:	3002b073          	csrc	mstatus,t0
+  38:	000012b7          	lui	t0,0x1
+  3c:	80028293          	addi	t0,t0,-2048 # 800 <MSTATUS_MPP_S>
+  40:	3002a073          	csrs	mstatus,t0
+  44:	00000297          	auipc	t0,0x0
+  48:	01028293          	addi	t0,t0,16 # 54 <s_mode_entry>
+  4c:	34129073          	csrw	mepc,t0
+  50:	30200073          	mret
+
+00000054 <s_mode_entry>:
+  54:	00010117          	auipc	sp,0x10
+  58:	eac10113          	addi	sp,sp,-340 # ff00 <_stack_top>
+  5c:	0dc000ef          	jal	138 <main>
+  60:	02000513          	li	a0,32
+  64:	0bc0006f          	j	120 <finish_fail>
+
+00000068 <m_trap_vector>:
+  68:	342022f3          	csrr	t0,mcause
+  6c:	34102373          	csrr	t1,mepc
+  70:	343023f3          	csrr	t2,mtval
+  74:	00028293          	mv	t0,t0
+  78:	00030313          	mv	t1,t1
+  7c:	00038393          	mv	t2,t2
+  80:	01200e13          	li	t3,18
+  84:	01c29c63          	bne	t0,t3,9c <trap_fail_cause>
+  88:	00300e13          	li	t3,3
+  8c:	01c39e63          	bne	t2,t3,a8 <trap_fail_tval>
+  90:	00100e13          	li	t3,1
+  94:	00000e93          	li	t4,0
+  98:	0000006f          	j	98 <m_trap_vector+0x30>
+
+0000009c <trap_fail_cause>:
+  9c:	0e100e13          	li	t3,225
+  a0:	00100e93          	li	t4,1
+  a4:	0000006f          	j	a4 <trap_fail_cause+0x8>
+
+000000a8 <trap_fail_tval>:
+  a8:	0e200e13          	li	t3,226
+  ac:	00100e93          	li	t4,1
+  b0:	0000006f          	j	b0 <trap_fail_tval+0x8>
+
+Disassembly of section .text:
+
+000000b4 <leaf_step>:
+  b4:	00100713          	li	a4,1
+  b8:	00e50533          	add	a0,a0,a4
+  bc:	16e02c23          	sw	a4,376(zero) # 178 <g_stage>
+  c0:	00008067          	ret
+
+000000c4 <cause_shadow_mismatch>:
+  c4:	ff010113          	addi	sp,sp,-16
+  c8:	00812423          	sw	s0,8(sp)
+  cc:	00200793          	li	a5,2
+  d0:	00112623          	sw	ra,12(sp)
+  d4:	16f02c23          	sw	a5,376(zero) # 178 <g_stage>
+  d8:	fddff0ef          	jal	b4 <leaf_step>
+  dc:	cdc04773          	ssrdp	a4
+  e0:	16e02823          	sw	a4,368(zero) # 170 <g_ssp_addr>
+  e4:	17002783          	lw	a5,368(zero) # 170 <g_ssp_addr>
+  e8:	1357a737          	lui	a4,0x1357a
+  ec:	0007a583          	lw	a1,0(a5)
+  f0:	bdf70713          	addi	a4,a4,-1057 # 13579bdf <_stack_top+0x13569cdf>
+  f4:	16b02623          	sw	a1,364(zero) # 16c <g_shadow_before>
+  f8:	00e7a023          	sw	a4,0(a5)
+  fc:	0007a703          	lw	a4,0(a5)
+ 100:	00300793          	li	a5,3
+ 104:	00c12083          	lw	ra,12(sp)
+ 108:	16e02423          	sw	a4,360(zero) # 168 <_end>
+ 10c:	16f02c23          	sw	a5,376(zero) # 178 <g_stage>
+ 110:	00812403          	lw	s0,8(sp)
+ 114:	00150513          	addi	a0,a0,1
+ 118:	01010113          	addi	sp,sp,16
+ 11c:	00008067          	ret
+
+00000120 <finish_fail>:
+ 120:	dead07b7          	lui	a5,0xdead0
+ 124:	00f567b3          	or	a5,a0,a5
+ 128:	16f02a23          	sw	a5,372(zero) # 174 <g_status>
+ 12c:	00050e13          	mv	t3,a0
+ 130:	00100e93          	li	t4,1
+ 134:	0000006f          	j	134 <finish_fail+0x14>
+
+00000138 <main>:
+ 138:	ff010113          	addi	sp,sp,-16
+ 13c:	22220737          	lui	a4,0x22220
+ 140:	16e02a23          	sw	a4,372(zero) # 174 <g_status>
+ 144:	00812423          	sw	s0,8(sp)
+ 148:	02800513          	li	a0,40
+ 14c:	00112623          	sw	ra,12(sp)
+ 150:	16002c23          	sw	zero,376(zero) # 178 <g_stage>
+ 154:	f71ff0ef          	jal	c4 <cause_shadow_mismatch>
+ 158:	00400793          	li	a5,4
+ 15c:	02000513          	li	a0,32
+ 160:	16f02c23          	sw	a5,376(zero) # 178 <g_stage>
+ 164:	fbdff0ef          	jal	120 <finish_fail>

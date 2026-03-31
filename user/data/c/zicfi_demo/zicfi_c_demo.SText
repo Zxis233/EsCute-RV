@@ -1,0 +1,151 @@
+
+zicfi_c_demo.elf：     文件格式 elf32-littleriscv
+
+
+Disassembly of section .text.init:
+
+00000000 <_start>:
+   0:	00010117          	auipc	sp,0x10
+   4:	f0010113          	addi	sp,sp,-256 # ff00 <_stack_top>
+   8:	00000297          	auipc	t0,0x0
+   c:	06028293          	addi	t0,t0,96 # 68 <m_trap_vector>
+  10:	30529073          	csrw	mtvec,t0
+  14:	00c00293          	li	t0,12
+  18:	30a29073          	csrw	0x30a,t0
+  1c:	10a29073          	csrw	0x10a,t0
+  20:	000032b7          	lui	t0,0x3
+  24:	40028293          	addi	t0,t0,1024 # 3400 <SHADOW_TOP>
+  28:	01129073          	csrw	ssp,t0
+  2c:	000022b7          	lui	t0,0x2
+  30:	80028293          	addi	t0,t0,-2048 # 1800 <MSTATUS_MPP_MASK>
+  34:	3002b073          	csrc	mstatus,t0
+  38:	000012b7          	lui	t0,0x1
+  3c:	80028293          	addi	t0,t0,-2048 # 800 <MSTATUS_MPP_S>
+  40:	3002a073          	csrs	mstatus,t0
+  44:	00000297          	auipc	t0,0x0
+  48:	01028293          	addi	t0,t0,16 # 54 <s_mode_entry>
+  4c:	34129073          	csrw	mepc,t0
+  50:	30200073          	mret
+
+00000054 <s_mode_entry>:
+  54:	00010117          	auipc	sp,0x10
+  58:	eac10113          	addi	sp,sp,-340 # ff00 <_stack_top>
+  5c:	088000ef          	jal	e4 <main>
+  60:	02000513          	li	a0,32
+  64:	0740006f          	j	d8 <finish_fail>
+
+00000068 <m_trap_vector>:
+  68:	342022f3          	csrr	t0,mcause
+  6c:	34102373          	csrr	t1,mepc
+  70:	343023f3          	csrr	t2,mtval
+  74:	00200e93          	li	t4,2
+  78:	0000006f          	j	78 <m_trap_vector+0x10>
+
+Disassembly of section .text:
+
+0000007c <read_ssp>:
+  7c:	cdc04573          	.word	0xcdc04573
+  80:	00008067          	ret
+
+00000084 <write_ssp>:
+  84:	01151073          	csrw	ssp,a0
+  88:	00008067          	ret
+
+0000008c <shadow_push>:
+  8c:	cea04073          	.word	0xcea04073
+  90:	00008067          	ret
+
+00000094 <shadow_popchk>:
+  94:	cdc54073          	.word	0xcdc54073
+  98:	00008067          	ret
+
+0000009c <call_lpad_target>:
+  9c:	ff010113          	addi	sp,sp,-16
+  a0:	00112623          	sw	ra,12(sp)
+  a4:	000ab3b7          	lui	t2,0xab
+  a8:	00050313          	mv	t1,a0
+  ac:	00058513          	mv	a0,a1
+  b0:	000300e7          	jalr	t1
+  b4:	00c12083          	lw	ra,12(sp)
+  b8:	01010113          	addi	sp,sp,16
+  bc:	00008067          	ret
+
+000000c0 <lpad_target>:
+  c0:	000ab017          	.word	0x000ab017
+  c4:	00750513          	addi	a0,a0,7
+  c8:	00008067          	ret
+
+000000cc <finish_success>:
+  cc:	00050e13          	mv	t3,a0
+  d0:	00000e93          	li	t4,0
+  d4:	0000006f          	j	d4 <finish_success+0x8>
+
+000000d8 <finish_fail>:
+  d8:	00050e13          	mv	t3,a0
+  dc:	00100e93          	li	t4,1
+  e0:	0000006f          	j	e0 <finish_fail+0x8>
+
+000000e4 <main>:
+  e4:	ff010113          	addi	sp,sp,-16
+  e8:	00003537          	lui	a0,0x3
+  ec:	00812423          	sw	s0,8(sp)
+  f0:	01212023          	sw	s2,0(sp)
+  f4:	40050513          	addi	a0,a0,1024 # 3400 <SHADOW_TOP>
+  f8:	00100913          	li	s2,1
+  fc:	00112623          	sw	ra,12(sp)
+ 100:	00912223          	sw	s1,4(sp)
+ 104:	1f202c23          	sw	s2,504(zero) # 1f8 <g_status>
+ 108:	f7dff0ef          	jal	84 <write_ssp>
+ 10c:	f71ff0ef          	jal	7c <read_ssp>
+ 110:	1ea02823          	sw	a0,496(zero) # 1f0 <g_ssp_before>
+ 114:	1f002483          	lw	s1,496(zero) # 1f0 <g_ssp_before>
+ 118:	000037b7          	lui	a5,0x3
+ 11c:	40078793          	addi	a5,a5,1024 # 3400 <SHADOW_TOP>
+ 120:	08f49263          	bne	s1,a5,1a4 <main+0xc0>
+ 124:	11223537          	lui	a0,0x11223
+ 128:	34450513          	addi	a0,a0,836 # 11223344 <INSN_LPAD_TAG+0x1117832d>
+ 12c:	f61ff0ef          	jal	8c <shadow_push>
+ 130:	f4dff0ef          	jal	7c <read_ssp>
+ 134:	1ea02623          	sw	a0,492(zero) # 1ec <g_ssp_after_push>
+ 138:	1ec02703          	lw	a4,492(zero) # 1ec <g_ssp_after_push>
+ 13c:	000037b7          	lui	a5,0x3
+ 140:	3fc78793          	addi	a5,a5,1020 # 33fc <MSTATUS_MPP_MASK+0x1bfc>
+ 144:	08f71863          	bne	a4,a5,1d4 <main+0xf0>
+ 148:	00072683          	lw	a3,0(a4)
+ 14c:	112237b7          	lui	a5,0x11223
+ 150:	1ed02223          	sw	a3,484(zero) # 1e4 <g_shadow_word>
+ 154:	1e402503          	lw	a0,484(zero) # 1e4 <g_shadow_word>
+ 158:	34478793          	addi	a5,a5,836 # 11223344 <INSN_LPAD_TAG+0x1117832d>
+ 15c:	06f51663          	bne	a0,a5,1c8 <main+0xe4>
+ 160:	f35ff0ef          	jal	94 <shadow_popchk>
+ 164:	f19ff0ef          	jal	7c <read_ssp>
+ 168:	1ea02423          	sw	a0,488(zero) # 1e8 <g_ssp_after_pop>
+ 16c:	1e802783          	lw	a5,488(zero) # 1e8 <g_ssp_after_pop>
+ 170:	04979663          	bne	a5,s1,1bc <main+0xd8>
+ 174:	0c000513          	li	a0,192
+ 178:	02900593          	li	a1,41
+ 17c:	f21ff0ef          	jal	9c <call_lpad_target>
+ 180:	1ea02023          	sw	a0,480(zero) # 1e0 <_end>
+ 184:	1e002703          	lw	a4,480(zero) # 1e0 <_end>
+ 188:	03000793          	li	a5,48
+ 18c:	02f71263          	bne	a4,a5,1b0 <main+0xcc>
+ 190:	000067b7          	lui	a5,0x6
+ 194:	00d78793          	addi	a5,a5,13 # 600d <SHADOW_TOP+0x2c0d>
+ 198:	00500513          	li	a0,5
+ 19c:	1ef02c23          	sw	a5,504(zero) # 1f8 <g_status>
+ 1a0:	f2dff0ef          	jal	cc <finish_success>
+ 1a4:	00090513          	mv	a0,s2
+ 1a8:	1f202a23          	sw	s2,500(zero) # 1f4 <g_fail_step>
+ 1ac:	f2dff0ef          	jal	d8 <finish_fail>
+ 1b0:	00500513          	li	a0,5
+ 1b4:	1ea02a23          	sw	a0,500(zero) # 1f4 <g_fail_step>
+ 1b8:	f21ff0ef          	jal	d8 <finish_fail>
+ 1bc:	00400513          	li	a0,4
+ 1c0:	1ea02a23          	sw	a0,500(zero) # 1f4 <g_fail_step>
+ 1c4:	f15ff0ef          	jal	d8 <finish_fail>
+ 1c8:	00300513          	li	a0,3
+ 1cc:	1ea02a23          	sw	a0,500(zero) # 1f4 <g_fail_step>
+ 1d0:	f09ff0ef          	jal	d8 <finish_fail>
+ 1d4:	00200513          	li	a0,2
+ 1d8:	1ea02a23          	sw	a0,500(zero) # 1f4 <g_fail_step>
+ 1dc:	efdff0ef          	jal	d8 <finish_fail>

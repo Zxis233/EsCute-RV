@@ -1,0 +1,103 @@
+
+jop_zicfilp_off.elf：     文件格式 elf32-littleriscv
+
+
+Disassembly of section .text.init:
+
+00000000 <_start>:
+   0:	00010117          	auipc	sp,0x10
+   4:	f0010113          	addi	sp,sp,-256 # ff00 <_stack_top>
+   8:	00000297          	auipc	t0,0x0
+   c:	06028293          	addi	t0,t0,96 # 68 <m_trap_vector>
+  10:	30529073          	csrw	mtvec,t0
+  14:	00c00293          	li	t0,12
+  18:	30a29073          	csrw	0x30a,t0
+  1c:	10a29073          	csrw	0x10a,t0
+  20:	000032b7          	lui	t0,0x3
+  24:	40028293          	addi	t0,t0,1024 # 3400 <SHADOW_TOP>
+  28:	01129073          	csrw	ssp,t0
+  2c:	000022b7          	lui	t0,0x2
+  30:	80028293          	addi	t0,t0,-2048 # 1800 <MSTATUS_MPP_MASK>
+  34:	3002b073          	csrc	mstatus,t0
+  38:	000012b7          	lui	t0,0x1
+  3c:	80028293          	addi	t0,t0,-2048 # 800 <MSTATUS_MPP_S>
+  40:	3002a073          	csrs	mstatus,t0
+  44:	00000297          	auipc	t0,0x0
+  48:	01028293          	addi	t0,t0,16 # 54 <s_mode_entry>
+  4c:	34129073          	csrw	mepc,t0
+  50:	30200073          	mret
+
+00000054 <s_mode_entry>:
+  54:	00010117          	auipc	sp,0x10
+  58:	eac10113          	addi	sp,sp,-340 # ff00 <_stack_top>
+  5c:	0a0000ef          	jal	fc <main>
+  60:	02000513          	li	a0,32
+  64:	0800006f          	j	e4 <finish_fail>
+
+00000068 <m_trap_vector>:
+  68:	342022f3          	csrr	t0,mcause
+  6c:	34102373          	csrr	t1,mepc
+  70:	343023f3          	csrr	t2,mtval
+  74:	00028293          	mv	t0,t0
+  78:	00030313          	mv	t1,t1
+  7c:	00038393          	mv	t2,t2
+  80:	01200e13          	li	t3,18
+  84:	03c29263          	bne	t0,t3,a8 <trap_fail_cause>
+  88:	00200e13          	li	t3,2
+  8c:	03c39463          	bne	t2,t3,b4 <trap_fail_tval>
+  90:	00000e17          	auipc	t3,0x0
+  94:	03ce0e13          	addi	t3,t3,60 # cc <bad_target>
+  98:	03c31463          	bne	t1,t3,c0 <trap_fail_epc>
+  9c:	00100e13          	li	t3,1
+  a0:	00000e93          	li	t4,0
+  a4:	0000006f          	j	a4 <m_trap_vector+0x3c>
+
+000000a8 <trap_fail_cause>:
+  a8:	0e100e13          	li	t3,225
+  ac:	00100e93          	li	t4,1
+  b0:	0000006f          	j	b0 <trap_fail_cause+0x8>
+
+000000b4 <trap_fail_tval>:
+  b4:	0e200e13          	li	t3,226
+  b8:	00100e93          	li	t4,1
+  bc:	0000006f          	j	bc <trap_fail_tval+0x8>
+
+000000c0 <trap_fail_epc>:
+  c0:	0e300e13          	li	t3,227
+  c4:	00100e93          	li	t4,1
+  c8:	0000006f          	j	c8 <trap_fail_epc+0x8>
+
+Disassembly of section .text:
+
+000000cc <bad_target>:
+  cc:	06300513          	li	a0,99
+  d0:	00008067          	ret
+
+000000d4 <do_indirect_call.isra.0>:
+  d4:	00100713          	li	a4,1
+  d8:	12e02c23          	sw	a4,312(zero) # 138 <g_stage>
+  dc:	13002783          	lw	a5,304(zero) # 130 <_end>
+  e0:	00078067          	jr	a5
+
+000000e4 <finish_fail>:
+  e4:	dead07b7          	lui	a5,0xdead0
+  e8:	00f567b3          	or	a5,a0,a5
+  ec:	12f02a23          	sw	a5,308(zero) # 134 <g_status>
+  f0:	00050e13          	mv	t3,a0
+  f4:	00100e93          	li	t4,1
+  f8:	0000006f          	j	f8 <finish_fail+0x14>
+
+000000fc <main>:
+  fc:	ff010113          	addi	sp,sp,-16
+ 100:	11110737          	lui	a4,0x11110
+ 104:	12e02a23          	sw	a4,308(zero) # 134 <g_status>
+ 108:	00812423          	sw	s0,8(sp)
+ 10c:	0cc00793          	li	a5,204
+ 110:	12002c23          	sw	zero,312(zero) # 138 <g_stage>
+ 114:	12f02823          	sw	a5,304(zero) # 130 <_end>
+ 118:	00112623          	sw	ra,12(sp)
+ 11c:	fb9ff0ef          	jal	d4 <do_indirect_call.isra.0>
+ 120:	00200793          	li	a5,2
+ 124:	02000513          	li	a0,32
+ 128:	12f02c23          	sw	a5,312(zero) # 138 <g_stage>
+ 12c:	fb9ff0ef          	jal	e4 <finish_fail>
