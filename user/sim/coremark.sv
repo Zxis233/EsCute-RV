@@ -153,7 +153,7 @@ module coremark;
     end
 
 
-    localparam integer TOHOST_ADDR = 32'h0d000720;  // 注意：根据你的链接脚本调整！
+    localparam integer TOHOST_ADDR = 32'h8d000720;  // 注意：根据你的链接脚本调整！
 
     always_ff @(posedge clk) begin
         if (u_CPU_TOP.dram_we_MEM && u_CPU_TOP.alu_result_MEM == TOHOST_ADDR) begin

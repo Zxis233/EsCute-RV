@@ -33,3 +33,5 @@ coremark/escute/*.o
 !user/data/c
 !user/data/c/*/*.log
 !user/data/c/*/*.SText
+
+.codex

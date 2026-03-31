@@ -3,7 +3,7 @@
     .equ     ZICFI_ENVCFG_ENABLE, 0x0000000c
     .equ     MSTATUS_MPP_MASK,    0x00001800
     .equ     MSTATUS_MPP_S,       0x00000800
-    .equ     TOHOST_ADDR,         0x0d000720
+    .equ     TOHOST_ADDR,         0x8d000720
 
     .section .text.init
     .globl   _start

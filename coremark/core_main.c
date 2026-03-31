@@ -21,7 +21,7 @@ Original Author: Shay Gal-on
    initial parameters, tun t he benchmark and report the results.
 */
 #include "coremark.h"
-#define TOHOST (*(volatile ee_u32*)0x0D000720)
+#define TOHOST (*(volatile ee_u32*)0x8D000720)
 static void exit_sim(ee_u32 code)
 {
     TOHOST = code;  // code=1 => PASS

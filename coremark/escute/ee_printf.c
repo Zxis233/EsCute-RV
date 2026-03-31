@@ -17,7 +17,7 @@ limitations under the License.
 #include <coremark.h>
 #include <stdarg.h>
 
-#define TOHOST (*(volatile ee_u32*)0x0D000720)
+#define TOHOST (*(volatile ee_u32*)0x8D000720)
 
 
 #define ZEROPAD   (1 << 0) /* Pad with zero */

@@ -4,7 +4,7 @@ ENTRY(_start)
 SECTIONS
 {
   /* 你的 CPU reset 从 0 开始取指 */
-  . = 0x00000000;
+  . = 0x80000000;
 
   /* 启动入口，放在最前面 */
   .text.init : {
@@ -26,9 +26,9 @@ SECTIONS
     *(COMMON)
   }
 
-  _shadow_stack_top = 0x0000C000;
-  _stack_top = 0x0000FF00;
-  _end = .;
+  _shadow_stack_top = 0x8000C000;
+  _stack_top        = 0x8000FF00;
+  _end              = .;
 }
 
 ASSERT(_end < _stack_top - 0x1000, "ERROR: program too large / stack overlap!");
