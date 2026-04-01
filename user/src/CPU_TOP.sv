@@ -4,7 +4,7 @@
 
 
 module CPU_TOP #(
-    localparam bit ENABLE_STATIC_BPU = 1'b1
+    parameter bpu_type_e BPU_TYPE = STATIC
 ) (
     input  logic        clk,
     input  logic        rst_n,
@@ -15,7 +15,9 @@ module CPU_TOP #(
     output logic [13:0] pc
 );
 
-    localparam int unsigned XLEN = 32;
+    localparam int unsigned XLEN           = 32;
+    localparam int unsigned BPU_INDEX_BITS = 8;
+    localparam int unsigned BPU_META_BITS  = 2;
     // verilog_format:off
 // ================= 各级之间的信号 ===================
     logic         valid_IF,  valid_ID,  valid_EX,  valid_MEM,  valid_WB;
@@ -55,6 +57,11 @@ module CPU_TOP #(
     logic [31:0]     branch_target_ID,   branch_target_EX;
     logic            branch_predicted_ID, branch_predicted_fire_ID, branch_predicted_EX;
     logic [31:0]     branch_predicted_target_ID, branch_predicted_target_EX;
+    logic [BPU_META_BITS-1:0] branch_predict_meta_ID, branch_predict_meta_EX;
+    logic            bpu_update_valid_EX;
+    logic            take_branch_normal;
+    logic            exception_valid_EX;
+    logic [63:0]     mispredict_counter;
     // ALU结果
     logic [31:0]                            alu_result_EX,      alu_result_MEM,      alu_result_WB;
 
@@ -141,6 +148,7 @@ module CPU_TOP #(
     logic        elp_update_expected;
 // ================= 各级之间的信号 ===================
 
+// verilog_format:on
     function automatic logic csr_is_implemented(input logic [11:0] addr);
         begin
             unique case (addr)
@@ -266,14 +274,27 @@ module CPU_TOP #(
         .is_illegal_instr(is_illegal_instr_ID)
     );
 
-    StaticBPU u_StaticBPU (
-        .valid_i          (valid_ID),
-        .is_branch_instr_i(is_branch_instr_ID),
-        .jump_type_i      (jump_type_ID),
-        .imm_i            (imm_ID),
-        .branch_target_i  (branch_target_ID),
-        .predict_taken_o  (branch_predicted_ID),
-        .predict_target_o (branch_predicted_target_ID)
+    BPU #(
+        .BPU_TYPE  (BPU_TYPE),
+        .INDEX_BITS(BPU_INDEX_BITS),
+        .META_BITS (BPU_META_BITS)
+    ) u_BPU (
+        .clk               (clk),
+        .rst_n             (rst_n),
+        .valid_i           (valid_ID),
+        .pc_i              (pc_ID),
+        .is_branch_instr_i (is_branch_instr_ID),
+        .jump_type_i       (jump_type_ID),
+        .imm_i             (imm_ID),
+        .branch_target_i   (branch_target_ID),
+        .update_valid_i    (bpu_update_valid_EX),
+        .update_pc_i       (pc_EX),
+        .update_is_branch_i(is_branch_instr_EX),
+        .update_taken_i    (take_branch_normal),
+        .update_meta_i     (branch_predict_meta_EX),
+        .predict_taken_o   (branch_predicted_ID),
+        .predict_target_o  (branch_predicted_target_ID),
+        .predict_meta_o    (branch_predict_meta_ID)
     );
 
     always_comb begin
@@ -334,7 +355,9 @@ module CPU_TOP #(
     logic [31:0] fwd_rD1_EX;
     logic [31:0] fwd_rD2_EX;
 
-    PR_ID_EX u_PR_ID_EX (
+    PR_ID_EX #(
+        .PREDICT_META_BITS(BPU_META_BITS)
+    ) u_PR_ID_EX (
         .clk                 (clk),
         .rst_n               (rst_n),
         // 流水线控制信号
@@ -399,6 +422,8 @@ module CPU_TOP #(
         .predicted_taken_ex_o(branch_predicted_EX),
         .predicted_target_id_i(branch_predicted_target_ID),
         .predicted_target_ex_o(branch_predicted_target_EX),
+        .predicted_meta_id_i (branch_predict_meta_ID),
+        .predicted_meta_ex_o (branch_predict_meta_EX),
         // 前递相关
         .fwd_rD1e_EX         (fwd_rD1e_EX),
         .fwd_rD2e_EX         (fwd_rD2e_EX),
@@ -520,7 +545,6 @@ module CPU_TOP #(
     logic [31:0] branch_target_normal;
     logic [31:0] instr_target_EX;
     logic branch_jal_target_misaligned_EX;
-    logic take_branch_normal;
     logic normal_control_mispredict_EX;
     logic [31:0] normal_control_recover_target_EX;
     assign jalr_target_EX = {alu_result_EX[31:1], 1'b0};  // JALR target after masking bit 0
@@ -554,11 +578,11 @@ module CPU_TOP #(
     end
 
     // EX级异常 (不包括非法指令，非法指令在ID级处理)
-    logic exception_valid_EX;
     assign shadow_access_fault_EX = shadow_mem_active_EX && (shadow_addr_EX[1:0] != 2'b00);
     assign exception_valid_EX = (instr_misaligned_EX || load_misaligned_EX ||
                                  store_misaligned_EX || shadow_access_fault_EX ||
                                  is_ecall_EX) && valid_EX;
+    assign bpu_update_valid_EX = valid_EX && is_branch_instr_EX && !exception_valid_EX;
     assign mul_commit_serialize_active = is_mul_instr_EX || mul_busy;
     assign redirect_from_ex_stage = normal_control_mispredict_EX ||
                                     exception_valid_EX ||
@@ -701,7 +725,7 @@ module CPU_TOP #(
     );
 
     assign normal_control_mispredict_EX =
-        valid_EX &&
+        valid_EX && 
         ((branch_predicted_EX != take_branch_normal) ||
          (branch_predicted_EX && take_branch_normal &&
           (branch_predicted_target_EX != branch_target_normal)));
@@ -724,9 +748,21 @@ module CPU_TOP #(
         end
     end
 
-    assign branch_predicted_fire_ID = ENABLE_STATIC_BPU && branch_predicted_ID && !keep_PC && !take_branch_NextPC;
+    assign branch_predicted_fire_ID = (BPU_TYPE != 2'b00) && branch_predicted_ID && !keep_PC && !take_branch_NextPC;
     assign pc_redirect_op = take_branch_NextPC || branch_predicted_fire_ID;
     assign pc_redirect_target = take_branch_NextPC ? branch_target_NextPC : branch_predicted_target_ID;
+
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            mispredict_counter <= 64'd0;
+        end
+        else if (BPU_TYPE == NONE) begin
+            mispredict_counter <= 64'd0;
+        end
+        else if (normal_control_mispredict_EX)begin
+            mispredict_counter <= mispredict_counter + 64'd1;
+        end
+    end
 
     logic [31:0] shadow_operand_EX;
     always_comb begin

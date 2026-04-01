@@ -1,7 +1,7 @@
 `timescale 1ns / 1ps
 
 `include "../src/CPU_TOP.sv"
-`define DEBUG 
+`define DEBUG
 
 `define REG_FILE u_CPU_TOP.u_registerf
 `define CSR_FILE u_CPU_TOP.u_CSR
@@ -163,6 +163,7 @@ module tb_CPU_TOP;
         $display("========================================");
         $display("Simulation finished at time %0t", $time);
         $display("========================================");
+        $display("mispredict_counter = %0d", u_CPU_TOP.mispredict_counter);
 
         // 打印寄存器堆状态
         print_register_file();
@@ -258,6 +259,7 @@ module tb_CPU_TOP;
     // 超时保护
     initial begin
         #20000;  // 50us 超时
+        $display("mispredict_counter = %0d", u_CPU_TOP.mispredict_counter);
         $display("ERROR: Simulation timeout!");
         $finish;
     end

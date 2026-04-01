@@ -1,4 +1,6 @@
-module PR_ID_EX (
+module PR_ID_EX #(
+    parameter int unsigned PREDICT_META_BITS = 8
+) (
     input  logic        clk,
     input  logic        rst_n,
     // 流水线控制信号
@@ -24,73 +26,75 @@ module PR_ID_EX (
     output logic [31:0] rD2_o,
 
     // ALUOp
-    input  logic [ 4:0] alu_op_id_i,
-    output logic [ 4:0] alu_op_ex_o,
+    input  logic [                  4:0] alu_op_id_i,
+    output logic [                  4:0] alu_op_ex_o,
     // ALU第一操作数来源 判断AUIPC
-    input  logic        is_auipc_id_i,
-    output logic        is_auipc_ex_o,
+    input  logic                         is_auipc_id_i,
+    output logic                         is_auipc_ex_o,
     // ALU第二操作数来源
-    input  logic        alu_src2_sel_id_i,
-    output logic        alu_src2_sel_ex_o,
+    input  logic                         alu_src2_sel_id_i,
+    output logic                         alu_src2_sel_ex_o,
     // 写使能
-    input  logic        dram_we_id_i,
-    output logic        dram_we_ex_o,
-    input  logic        rf_we_id_i,
-    output logic        rf_we_ex_o,
+    input  logic                         dram_we_id_i,
+    output logic                         dram_we_ex_o,
+    input  logic                         rf_we_id_i,
+    output logic                         rf_we_ex_o,
     // 写回数据来源
-    input  logic [ 2:0] wd_sel_id_i,
-    output logic [ 2:0] wd_sel_ex_o,
+    input  logic [                  2:0] wd_sel_id_i,
+    output logic [                  2:0] wd_sel_ex_o,
     // 写回寄存器地址
-    input  logic [ 4:0] wr_id_i,
-    output logic [ 4:0] wr_ex_o,
+    input  logic [                  4:0] wr_id_i,
+    output logic [                  4:0] wr_ex_o,
     // 分支跳转
-    input  logic        is_branch_instr_id_i,
-    output logic        is_branch_instr_ex_o,
-    input  logic [ 2:0] branch_type_id_i,
-    output logic [ 2:0] branch_type_ex_o,
+    input  logic                         is_branch_instr_id_i,
+    output logic                         is_branch_instr_ex_o,
+    input  logic [                  2:0] branch_type_id_i,
+    output logic [                  2:0] branch_type_ex_o,
     // 跳转相关
-    input  logic [ 1:0] jump_type_id_i,
-    output logic [ 1:0] jump_type_ex_o,
+    input  logic [                  1:0] jump_type_id_i,
+    output logic [                  1:0] jump_type_ex_o,
     // 读取类型
-    input  logic [ 3:0] sl_type_id_i,
-    output logic [ 3:0] sl_type_ex_o,
+    input  logic [                  3:0] sl_type_id_i,
+    output logic [                  3:0] sl_type_ex_o,
     // 立即数
-    input  logic [31:0] imm_id_i,
-    output logic [31:0] imm_ex_o,
+    input  logic [                 31:0] imm_id_i,
+    output logic [                 31:0] imm_ex_o,
     // PC跳转时地址
-    input  logic [31:0] pc_jump_id_i,
-    output logic [31:0] pc_jump_ex_o,
+    input  logic [                 31:0] pc_jump_id_i,
+    output logic [                 31:0] pc_jump_ex_o,
     // 分支预测信息
-    input  logic        predicted_taken_id_i,
-    output logic        predicted_taken_ex_o,
-    input  logic [31:0] predicted_target_id_i,
-    output logic [31:0] predicted_target_ex_o,
+    input  logic                         predicted_taken_id_i,
+    output logic                         predicted_taken_ex_o,
+    input  logic [                 31:0] predicted_target_id_i,
+    output logic [                 31:0] predicted_target_ex_o,
+    input  logic [PREDICT_META_BITS-1:0] predicted_meta_id_i,
+    output logic [PREDICT_META_BITS-1:0] predicted_meta_ex_o,
     // 加上前递相关
-    input               fwd_rD1e_EX,
-    input               fwd_rD2e_EX,
-    input  logic [31:0] fwd_rD1_EX,
-    input  logic [31:0] fwd_rD2_EX,
+    input                                fwd_rD1e_EX,
+    input                                fwd_rD2e_EX,
+    input  logic [                 31:0] fwd_rD1_EX,
+    input  logic [                 31:0] fwd_rD2_EX,
     // 乘法相关
-    input  logic        is_mul_instr_id_i,
-    output logic        is_mul_instr_ex_o,
-    input  logic [ 1:0] mul_op_id_i,
-    output logic [ 1:0] mul_op_ex_o,
+    input  logic                         is_mul_instr_id_i,
+    output logic                         is_mul_instr_ex_o,
+    input  logic [                  1:0] mul_op_id_i,
+    output logic [                  1:0] mul_op_ex_o,
     // CSR相关
-    input  logic        is_csr_instr_id_i,
-    output logic        is_csr_instr_ex_o,
-    input  logic [ 2:0] csr_op_id_i,
-    output logic [ 2:0] csr_op_ex_o,
-    input  logic [11:0] csr_addr_id_i,
-    output logic [11:0] csr_addr_ex_o,
-    input  logic        is_ecall_id_i,
-    output logic        is_ecall_ex_o,
-    input  logic        is_mret_id_i,
-    output logic        is_mret_ex_o,
-    input  logic        is_sret_id_i,
-    output logic        is_sret_ex_o,
+    input  logic                         is_csr_instr_id_i,
+    output logic                         is_csr_instr_ex_o,
+    input  logic [                  2:0] csr_op_id_i,
+    output logic [                  2:0] csr_op_ex_o,
+    input  logic [                 11:0] csr_addr_id_i,
+    output logic [                 11:0] csr_addr_ex_o,
+    input  logic                         is_ecall_id_i,
+    output logic                         is_ecall_ex_o,
+    input  logic                         is_mret_id_i,
+    output logic                         is_mret_ex_o,
+    input  logic                         is_sret_id_i,
+    output logic                         is_sret_ex_o,
     // 非法指令相关
-    input  logic        is_illegal_instr_id_i,
-    output logic        is_illegal_instr_ex_o
+    input  logic                         is_illegal_instr_id_i,
+    output logic                         is_illegal_instr_ex_o
 );
 
     // 前递信号与数据
@@ -205,12 +209,15 @@ module PR_ID_EX (
         if (!rst_n) begin
             predicted_taken_ex_o  <= 1'b0;
             predicted_target_ex_o <= 32'b0;
+            predicted_meta_ex_o   <= '0;
         end else if (flush) begin
             predicted_taken_ex_o  <= 1'b0;
             predicted_target_ex_o <= 32'b0;
+            predicted_meta_ex_o   <= '0;
         end else begin
             predicted_taken_ex_o  <= predicted_taken_id_i;
             predicted_target_ex_o <= predicted_target_id_i;
+            predicted_meta_ex_o   <= predicted_meta_id_i;
         end
     end
 

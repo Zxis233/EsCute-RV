@@ -1,13 +1,15 @@
 `timescale 1ns / 1ps
 
 `include "../src/CPU_TOP.sv"
-`define DEBUG 
+`define DEBUG
 
 `define REG_FILE u_CPU_TOP.u_registerf
 `define CSR_FILE u_CPU_TOP.u_CSR
 
 // verilog_format: off
-module coremark;
+module coremark #(
+    parameter int BPU_TYPE = 0
+);
 
 // 时钟和复位信号
     logic        clk;
@@ -26,7 +28,9 @@ module coremark;
     );
 
 // 实例化 CPU_TOP
-    CPU_TOP u_CPU_TOP (
+    CPU_TOP #(
+        .BPU_TYPE(bpu_type_e'(BPU_TYPE))
+    ) u_CPU_TOP (
         .clk  (clk),
         .rst_n(rst_n),
         .instr(irom_data),
@@ -163,14 +167,16 @@ module coremark;
 
             // 退出码判断
             if (tohost_data == 32'd1) begin
+                $display("%10t| [INFO] |  Mispredict_counter = %0d", $time,
+                         u_CPU_TOP.mispredict_counter);
                 $display("%10t| [PASS] |  Finished  ", $time);
                 $finish;
-            end
-            else if (tohost_data == 32'd2) begin
+            end else if (tohost_data == 32'd2) begin
+                $display("%10t| [INFO] |  Mispredict_counter = %0d", $time,
+                         u_CPU_TOP.mispredict_counter);
                 $display("%10t| [FAIL] |  Finished  ", $time);
                 $finish;
-            end
-            else begin
+            end else begin
                 // 普通字符输出
                 $write("%c", tohost_data[7:0]);
                 $fflush();
@@ -209,13 +215,15 @@ module coremark;
     // 检测异常
     always_ff @(posedge clk) begin
         if (u_CPU_TOP.exception_valid) begin
-            $display("%10t| [EXCEPTION] PC=0x%08h, cause=%d, tval=0x%08h", $time, u_CPU_TOP.exception_pc, u_CPU_TOP.exception_cause, u_CPU_TOP.exception_tval);
+            $display("%10t| [EXCEPTION] PC=0x%08h, cause=%d, tval=0x%08h", $time,
+                     u_CPU_TOP.exception_pc, u_CPU_TOP.exception_cause, u_CPU_TOP.exception_tval);
         end
     end
 
     // 超时保护
     initial begin
         #100000000;  // 1ms 超时
+        $display("%10t| [INFO] |  Mispredict_counter = %0d", $time, u_CPU_TOP.mispredict_counter);
         $display("%10t| [EROR] |  TimeOut!  ", $time);
         $finish;
     end

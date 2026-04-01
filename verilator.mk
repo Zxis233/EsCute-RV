@@ -20,6 +20,11 @@ VERILATOR_WARNINGS := -Wno-fatal -Wno-WIDTHEXPAND -Wno-WIDTHTRUNC -Wno-PINCONNEC
 VERILATOR_FLAGS    := -sv --timing --binary --build --trace -j $(JOBS)
 VERILATOR_FLAGS    += -I$(SRC_DIR) -I$(SRC_DIR)/include
 VERILATOR_FLAGS    += $(VERILATOR_WARNINGS)
+VERILATOR_PARAM_FLAGS :=
+
+ifneq ($(strip $(BPU_TYPE)),)
+VERILATOR_PARAM_FLAGS += -GBPU_TYPE=$(BPU_TYPE)
+endif
 
 SIM_BIN         := $(OBJ_DIR)/V$(TB_MODULE)
 COREMARK_BIN    := $(COREMARK_OBJ)/V$(COREMARK_TOP)
@@ -69,7 +74,7 @@ $(SIM_BIN): $(TB_TOP) $(RTL_FILES) | $(RUN_DIR)
 	@echo "测试文件: $(TB_TOP)"
 	@echo "输出目录: $(OBJ_DIR)"
 	@echo "========================================"
-	$(VERILATOR) $(VERILATOR_FLAGS) \
+	$(VERILATOR) $(VERILATOR_FLAGS) $(VERILATOR_PARAM_FLAGS) \
 		--top-module $(TB_MODULE) \
 		-Mdir $(OBJ_DIR) \
 		$(TB_TOP) $(RTL_FILES)
@@ -100,7 +105,7 @@ $(COREMARK_BIN): $(COREMARK_TB) $(RTL_FILES) | $(RUN_DIR)
 	@echo "测试文件: $(COREMARK_TB)"
 	@echo "输出目录: $(COREMARK_OBJ)"
 	@echo "========================================"
-	$(VERILATOR) $(VERILATOR_FLAGS) \
+	$(VERILATOR) $(VERILATOR_FLAGS) $(VERILATOR_PARAM_FLAGS) \
 		--top-module $(COREMARK_TOP) \
 		-Mdir $(COREMARK_OBJ) \
 		$(COREMARK_TB) $(RTL_FILES)
@@ -108,7 +113,7 @@ $(COREMARK_BIN): $(COREMARK_TB) $(RTL_FILES) | $(RUN_DIR)
 
 coremark_compile: $(COREMARK_BIN)
 
-coremark_test: coremark_compile
+coremark_test: clean coremark_compile
 	@echo "========================================"
 	@echo "运行测试: CoreMark Benchmark"
 	@echo "测试文件: $(COREMARK_HEX)"
@@ -167,7 +172,7 @@ regress_collect:
 		echo "没有找到测试结果"; \
 	fi
 
-regress: regress_prepare regress_run regress_collect
+regress: clean compile regress_prepare regress_run regress_collect
 
 clean:
 	@echo "清理 Verilator 生成文件..."

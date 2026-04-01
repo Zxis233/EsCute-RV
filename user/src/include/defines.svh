@@ -1,5 +1,5 @@
 `ifndef _DEFINES_V
-`define _DEFINES_V 
+`define _DEFINES_V
 
 // `define YOSYS 
 
@@ -155,24 +155,24 @@
     `define ALUSRC_IMM                  1'b1
 
 // ================== ALUOp  定义 ==================
-    `define ALU_NOP                     4'd0
-    `define ALU_ADD                     4'd1
-    `define ALU_SUB                     4'd2
-    `define ALU_OR                      4'd3
-    `define ALU_AND                     4'd4
-    `define ALU_XOR                     4'd5
-    `define ALU_SLL                     4'd6
-    `define ALU_SRL                     4'd7
-    `define ALU_SRA                     4'd8
-    `define ALU_SLT                     4'd9
-    `define ALU_SLTU                    4'd10
-    `define ALU_RIGHT                   4'd11
+    `define ALU_NOP                     5'd0
+    `define ALU_ADD                     5'd1
+    `define ALU_SUB                     5'd2
+    `define ALU_OR                      5'd3
+    `define ALU_AND                     5'd4
+    `define ALU_XOR                     5'd5
+    `define ALU_SLL                     5'd6
+    `define ALU_SRL                     5'd7
+    `define ALU_SRA                     5'd8
+    `define ALU_SLT                     5'd9
+    `define ALU_SLTU                    5'd10
+    `define ALU_RIGHT                   5'd11
 
 //================== ALUOp  M定义 ==================
-    `define ALU_MUL                     4'd12
-    `define ALU_MULH                    4'd13
-    `define ALU_MULHSU                  4'd14
-    `define ALU_MULHU                   4'd15
+    `define ALU_MUL                     5'd12
+    `define ALU_MULH                    5'd13
+    `define ALU_MULHSU                  5'd14
+    `define ALU_MULHU                   5'd15
 
     `define ALU_DIV                     5'd16
     `define ALU_DIVU                    5'd17
@@ -307,6 +307,15 @@
     `define MSTATUS_SPELP_BIT             23
     `define MSTATUSH_MPELP_BIT            9
 
+    typedef enum logic [1:0] {
+        NONE         = 0,
+        STATIC       = 1,
+        DYNAMIC_1bit = 2,
+        GSHARE       = 3
+    } bpu_type_e;
+
 //verilog_format: on
+
+
 
 `endif

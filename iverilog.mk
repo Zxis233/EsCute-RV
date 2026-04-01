@@ -17,6 +17,13 @@ VVP             ?= vvp
 IVERILOG_FLAGS  := -g2012 -Wall
 IVERILOG_FLAGS  += -I $(SRC_DIR)
 IVERILOG_FLAGS  += -I $(SRC_DIR)/include
+IVERILOG_PARAM_FLAGS :=
+COREMARK_IVERILOG_PARAM_FLAGS :=
+
+ifneq ($(strip $(BPU_TYPE)),)
+IVERILOG_PARAM_FLAGS += -P$(TB_MODULE).BPU_TYPE=$(BPU_TYPE)
+COREMARK_IVERILOG_PARAM_FLAGS += -P$(COREMARK_TOP).BPU_TYPE=$(BPU_TYPE)
+endif
 
 SIM_BIN         := $(RUN_DIR)/$(TB_MODULE).vvp
 COREMARK_BIN    := $(RUN_DIR)/$(COREMARK_TOP).vvp
@@ -69,7 +76,7 @@ $(SIM_BIN): $(TB_TOP) $(RTL_FILES) | $(RUN_DIR) $(WAVE_DIR)
 	@echo "测试文件: $(TB_TOP)"
 	@echo "输出目录: $(RUN_DIR)"
 	@echo "========================================"
-	$(IVERILOG) $(IVERILOG_FLAGS) -o $(SIM_BIN) $(TB_TOP) $(RTL_FILES)
+	$(IVERILOG) $(IVERILOG_FLAGS) $(IVERILOG_PARAM_FLAGS) -o $(SIM_BIN) $(TB_TOP) $(RTL_FILES)
 	@echo "编译完成: $(SIM_BIN)"
 
 compile: $(SIM_BIN)
@@ -97,12 +104,12 @@ $(COREMARK_BIN): $(COREMARK_TB) $(RTL_FILES) | $(RUN_DIR) $(WAVE_DIR)
 	@echo "测试文件: $(COREMARK_TB)"
 	@echo "输出目录: $(RUN_DIR)"
 	@echo "========================================"
-	$(IVERILOG) $(IVERILOG_FLAGS) -o $(COREMARK_BIN) $(COREMARK_TB) $(RTL_FILES)
+	$(IVERILOG) $(IVERILOG_FLAGS) $(COREMARK_IVERILOG_PARAM_FLAGS) -o $(COREMARK_BIN) $(COREMARK_TB) $(RTL_FILES)
 	@echo "编译完成: $(COREMARK_BIN)"
 
 coremark_compile: $(COREMARK_BIN)
 
-coremark_test: coremark_compile
+coremark_test: clean coremark_compile
 	@echo "========================================"
 	@echo "运行测试: CoreMark Benchmark"
 	@echo "测试文件: $(COREMARK_HEX)"
@@ -162,7 +169,7 @@ regress_collect:
 		echo "没有找到测试结果"; \
 	fi
 
-regress: regress_prepare regress_run regress_collect
+regress: clean compile regress_prepare regress_run regress_collect
 
 clean:
 	@echo "清理 Icarus Verilog 生成文件..."

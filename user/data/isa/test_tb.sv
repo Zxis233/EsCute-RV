@@ -1,12 +1,14 @@
 `timescale 1ns / 1ps
 
 `include "../../src/CPU_TOP.sv"
-`define DEBUG 
+`define DEBUG
 
 `define REG_FILE u_CPU_TOP.u_registerf
 `define CSR_FILE u_CPU_TOP.u_CSR
 // verilog_format: off
-module test_tb;
+module test_tb #(
+    parameter int BPU_TYPE = 0
+);
 
 // 时钟和复位信号
     logic        clk;
@@ -27,7 +29,9 @@ module test_tb;
     );
 
 // 实例化 CPU_TOP
-    CPU_TOP u_CPU_TOP (
+    CPU_TOP #(
+        .BPU_TYPE(bpu_type_e'(BPU_TYPE))
+    ) u_CPU_TOP (
         .clk  (clk),
         .rst_n(rst_n),
         .instr(irom_data),
@@ -211,23 +215,29 @@ module test_tb;
         if (test_count == 3) begin
             case (x17)
                 PASS_MAGIC: begin
+                    $display("%10t| [INFO] |  Mispredict_counter = %0d", $time,
+                             u_CPU_TOP.mispredict_counter);
                     $display("%10t| [PASS] |\t\t| %20s", $time, testcase);
                     $finish;
                 end
                 FAIL_MAGIC: begin
+                    $display("%10t| [INFO] |  Mispredict_counter = %0d", $time,
+                             u_CPU_TOP.mispredict_counter);
                     $display("%10t| [FAIL] |  No.%2d\t| %20s", $time, x10, testcase);
                     $finish;
                 end
                 default: begin
                 end
             endcase
-        end
-        else if (rst_n && tohost_data != 32'b0) begin
+        end else if (rst_n && tohost_data != 32'b0) begin
             if (tohost_data == 32'd1) begin
+                $display("%10t| [INFO] |  Mispredict_counter = %0d", $time,
+                         u_CPU_TOP.mispredict_counter);
                 $display("%10t| [PASS] |\t\t| %20s", $time, testcase);
                 $finish;
-            end
-            else if (tohost_data[0]) begin
+            end else if (tohost_data[0]) begin
+                $display("%10t| [INFO] |  Mispredict_counter = %0d", $time,
+                         u_CPU_TOP.mispredict_counter);
                 $display("%10t| [FAIL] |  No.%2d\t| %20s", $time, (tohost_data >> 1), testcase);
                 $finish;
             end
@@ -237,6 +247,7 @@ module test_tb;
     // 超时保护
     initial begin
         #1000000;  // 50us 超时
+        $display("%10t| [INFO] |  Mispredict_counter = %0d", $time, u_CPU_TOP.mispredict_counter);
         $display("%10t| [EROR] |  TimeOut!  | %20s", $time, testcase);
         $finish;
     end

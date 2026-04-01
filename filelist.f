@@ -8,7 +8,10 @@ read_slang
 ./user/src/RegisterF.sv 
 ./user/src/PR_ID_EX.sv 
 ./user/src/ALU.sv 
-./user/src/StaticBPU.sv 
+./user/src/Static_Predictor.sv 
+./user/src/Dynamic_1bit_Predictor.sv 
+./user/src/Dynamic_Gshare_Predictor.sv 
+./user/src/BPU.sv 
 ./user/src/NextPC_Generator.sv 
 ./user/src/PR_EX_MEM.sv 
 ./user/src/DRAM.sv 
