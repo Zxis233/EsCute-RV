@@ -1,6 +1,7 @@
 `ifndef _DEFINES_V
 `define _DEFINES_V
 
+// `define DEBUG
 // `define YOSYS 
 
 // 临时文件路径

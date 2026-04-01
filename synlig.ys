@@ -1,0 +1,44 @@
+# 读取所有模块（不需要 -formal）
+# read_systemverilog -defer ./user/src/include/defines.svh
+
+read_systemverilog -defer -I./user/src/include/defines.svh ./user/src/PC.sv
+read_systemverilog -defer -I./user/src/include/defines.svh ./user/src/IROM.sv
+
+read_systemverilog -defer -I./user/src/include/defines.svh ./user/src/PR_IF_ID.sv
+
+read_systemverilog -defer -I./user/src/include/defines.svh ./user/src/Decoder.sv
+read_systemverilog -defer -I./user/src/include/defines.svh ./user/src/imm_extender.sv
+read_systemverilog -defer -I./user/src/include/defines.svh ./user/src/RegisterF.sv
+read_systemverilog -defer -I./user/src/include/defines.svh ./user/src/CSR.sv
+read_systemverilog -defer -I./user/src/include/defines.svh ./user/src/BPU.sv
+read_systemverilog -defer -I./user/src/include/defines.svh ./user/src/Static_Predictor.sv
+read_systemverilog -defer -I./user/src/include/defines.svh ./user/src/Dynamic_Gshare_Predictor.sv
+read_systemverilog -defer -I./user/src/include/defines.svh ./user/src/Dynamic_1bit_Predictor.sv
+
+read_systemverilog -defer -I./user/src/include/defines.svh ./user/src/PR_ID_EX.sv
+
+read_systemverilog -defer -I./user/src/include/defines.svh ./user/src/ALU.sv
+read_systemverilog -defer -I./user/src/include/defines.svh ./user/src/MUL.sv
+read_systemverilog -defer -I./user/src/include/defines.svh ./user/src/NextPC_Generator.sv
+
+read_systemverilog -defer -I./user/src/include/defines.svh ./user/src/PR_EX_MEM.sv
+read_systemverilog -defer -I./user/src/include/defines.svh ./user/src/DRAM.sv
+read_systemverilog -defer -I./user/src/include/defines.svh ./user/src/LoadUnit.sv
+read_systemverilog -defer -I./user/src/include/defines.svh ./user/src/StoreUnit.sv
+
+read_systemverilog -defer -I./user/src/include/defines.svh ./user/src/PR_MEM_WB.sv
+
+read_systemverilog -defer -I./user/src/include/defines.svh ./user/src/HazardUnit.sv
+
+read_systemverilog -defer -I./user/src/include/defines.svh ./user/src/CPU_TOP.sv
+read_systemverilog -link
+# read_slang ./user/sim/tb_CPU_TOP.sv
+
+
+# 指定顶层模块，并做基础处理
+prep -top CPU_TOP
+# prep -top CPU_TOP -rdff              # 此处不能将触发器合并到内存读端口
+# prep -top CPU_TOP -flatten
+
+# 写出 JSON
+write_json ./prj/synlig/CPU_TOP.json

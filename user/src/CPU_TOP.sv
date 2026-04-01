@@ -4,7 +4,7 @@
 
 
 module CPU_TOP #(
-    parameter bpu_type_e BPU_TYPE = STATIC
+    parameter bpu_type_e BPU_TYPE = bpu_type_e'(1) // STATIC
 ) (
     input  logic        clk,
     input  logic        rst_n,

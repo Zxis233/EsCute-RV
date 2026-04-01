@@ -34,6 +34,12 @@ EsCute-RV
 ├── filelist.f                        # 工程文件列表
 ├── README.md                         # 项目说明文件
 ├── Makefile                          # 自动化测试用 Makefile 文件   
+├── prj
+│  └── synlig                        # Synlig 综合输出目录
+│     ├── CPU_TOP_synlig.json        # Synlig 导出的 JSON 网表
+│     ├── CPU_TOP_synlig.v           # Synlig 导出的 Verilog 网表
+│     ├── sythesis.log               # Synlig 综合日志
+│     └── work                       # 每次综合的独立 Surelog 工作目录
 ├── coremark                          # CoreMark基准测试文件夹
 │  ├── Makefile                       # CoreMark基准测试 Makefile 文件
 │  └── escute
@@ -64,6 +70,11 @@ EsCute-RV
    │  ├── tb_Zicfi.sv                 # Zicfiss / Zicfilp 定向测试
    │  ├── simple_counter.sv           # 简单计数器模块
    │  └── tb_simple_counter.sv        # 简单计数器测试文件 用于测试环境是否正确
+   ├── tools
+   │  ├── run_synlig_synth.sh         # Synlig 综合脚本
+   │  └── synlig_blackboxes
+   │     ├── DRAM_blackbox.sv         # DRAM 黑盒 stub
+   │     └── IROM_blackbox.sv         # IROM 黑盒 stub
    └── src
       ├── include
       │  └── defines.svh              # 全局宏定义文件
@@ -142,6 +153,65 @@ make SIM=verilator compile BPU_TYPE=3
 - `mispredict_counter` 会在 [test_tb.sv](user/data/isa/test_tb.sv)、[coremark.sv](user/sim/coremark.sv) 和 [tb_Verilator.sv](user/sim/tb_Verilator.sv) 中输出
 - `BPU_TYPE = NONE` 时该计数器保持为 `0`
 - 启用 BPU 时，它可用于不同预测器之间的相对性能比较
+
+## Synlig 综合说明
+
+当前仓库提供了基于 ChipsAlliance Synlig 的综合脚本：[run_synlig_synth.sh](user/tools/run_synlig_synth.sh)。
+
+脚本行为：
+
+- 自动从 [filelist.f](filelist.f) 提取 `-I` 路径，并传给 `read_systemverilog`
+- 默认使用 `read_systemverilog -defer`，随后执行 `read_systemverilog -link`
+- 默认顶层模块为 `CPU_TOP`
+- 默认输出到 `prj/synlig/`
+- 每次综合都在 `prj/synlig/work/run.*` 下创建独立工作目录，避免 Surelog 的 `slpp_all` 缓存污染不同模式的结果
+
+默认综合命令：
+
+```bash
+user/tools/run_synlig_synth.sh
+```
+
+默认模式下：
+
+- `IROM` 走黑盒 stub
+- `DRAM` 走黑盒 stub
+- 适合快速得到 CPU 顶层网表
+
+常用输出文件：
+
+- `prj/synlig/sythesis.log`
+- `prj/synlig/CPU_TOP_synlig.json`
+- `prj/synlig/CPU_TOP_synlig.v`
+
+### 让真实 DRAM 参与综合
+
+如果想检查 [DRAM.sv](user/src/DRAM.sv) 是否为可综合 Verilog，可以关闭 DRAM 黑盒：
+
+```bash
+SYNLIG_USE_DRAM_BLACKBOX=0 user/tools/run_synlig_synth.sh
+```
+
+此时脚本会直接把真实的 [DRAM.sv](user/src/DRAM.sv) 加入综合，而不是使用 [DRAM_blackbox.sv](user/tools/synlig_blackboxes/DRAM_blackbox.sv)。
+
+建议关注两点：
+
+- 日志中应出现 `Compile module "work@DRAM"`，说明综合读入的是真实 `DRAM.sv`
+- 不应再出现黑盒模式下的 `spo ... has no driver` 报告
+
+[DRAM.sv](user/src/DRAM.sv) 中与仿真有关的 `plusargs` / `readmemh` 路径已经通过 `ifndef YOSYS` 隔离；综合时真正参与检查的是内存数组、同步写和同步读逻辑。
+
+如果还想把真实 `IROM` 也拉进综合，可以再关闭 `IROM` 黑盒：
+
+```bash
+SYNLIG_USE_IROM_BLACKBOX=0 SYNLIG_USE_DRAM_BLACKBOX=0 user/tools/run_synlig_synth.sh
+```
+
+如果只想单独检查某个模块，也可以覆盖顶层：
+
+```bash
+TOP_MODULE=DRAM SYNLIG_USE_DRAM_BLACKBOX=0 user/tools/run_synlig_synth.sh
+```
 
 ## Zicfi 扩展说明
 

@@ -30,27 +30,7 @@ module IROM #(
 
         // verilog_format: off
 `ifdef YOSYS
-        `define IROM_FILE \
-        "user/data/hex/full_test.hex"
-        // "user/data/hex/jalr.hex"
-        // "user/data/hex/U.hex"
-        // "user/data/hex/simple_test.hex"
-
-        // "user/data/hex/branch.hex"
-        // "user/data/hex/myFirstTest.hex"
-        // "user/data/hex/no_hazard.hex"
-        // "user/data/hex/loaduse_test.hex"
-        // "user/data/hex/hazard12.hex"
-        // 尝试从文件加载指令
-        // if ($value$plusargs("IROM=%s", rom_file)) begin
-        if (1) begin
-            $readmemh(`IROM_FILE, rom_data, 0, 16383);
-            $display("IROM: Loaded instructions from %s", `IROM_FILE);
-        end else begin
-            // 如果没有指定文件,加载默认的测试程序
-            $display("IROM: Loading default test program");
-            load_default_program();
-        end
+        // 综合时保留默认初始化内容，不通过 plusargs/readmemh 读取外部镜像。
 `else
         if ($value$plusargs("TESTCASE=%s", testcase)) begin
             // testcase 已经包含完整路径 (从 Makefile 传入)

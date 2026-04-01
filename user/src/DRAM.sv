@@ -15,13 +15,16 @@ module DRAM #(
     // 初始化
     initial begin
         integer i;
+`ifndef YOSYS
         string  testcase;
+`endif
 
         // 初始化所有内存为0
         for (i = 0; i < 1 << ADDR_WIDTH; i = i + 1) begin
             ram_data[i] = 32'h00000000;
         end
 
+`ifndef YOSYS
         // 如果有testcase参数，从hex文件加载数据段
         // hex文件是完整的内存镜像，按字地址索引
         // 数据段从0x2000开始，即hex文件的第0x800行(2048)
@@ -32,6 +35,7 @@ module DRAM #(
             $readmemh(testcase, ram_data);
             $display("DRAM: Loaded memory image from %s", testcase);
         end
+`endif
     end
 
     // 同步写

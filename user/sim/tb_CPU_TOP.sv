@@ -1,7 +1,6 @@
 `timescale 1ns / 1ps
 
 `include "../src/CPU_TOP.sv"
-`define DEBUG
 
 `define REG_FILE u_CPU_TOP.u_registerf
 `define CSR_FILE u_CPU_TOP.u_CSR
