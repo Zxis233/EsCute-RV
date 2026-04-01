@@ -1,9 +1,11 @@
 `include "include/defines.svh"
 `ifndef CPU_TOP_SV_INCLUDED
-`define CPU_TOP_SV_INCLUDED 
+`define CPU_TOP_SV_INCLUDED
 
 
-module CPU_TOP (
+module CPU_TOP #(
+    localparam bit ENABLE_STATIC_BPU = 1'b1
+) (
     input  logic        clk,
     input  logic        rst_n,
     // 来自指令存储器IROM的指令 (可能是加密的)
@@ -51,6 +53,8 @@ module CPU_TOP (
     logic [31:0]               imm_ID,             imm_EX;
     // 分支目标地址/AUIPC计算地址
     logic [31:0]     branch_target_ID,   branch_target_EX;
+    logic            branch_predicted_ID, branch_predicted_fire_ID, branch_predicted_EX;
+    logic [31:0]     branch_predicted_target_ID, branch_predicted_target_EX;
     // ALU结果
     logic [31:0]                            alu_result_EX,      alu_result_MEM,      alu_result_WB;
 
@@ -69,6 +73,8 @@ module CPU_TOP (
 
     logic flush_IF_ID, flush_ID_EX;
     logic keep_PC, stall_IF_ID;
+    logic pc_redirect_op;
+    logic [31:0] pc_redirect_target;
 
     // CSR相关信号
     logic        is_csr_instr_ID, is_csr_instr_EX;
@@ -167,8 +173,8 @@ module CPU_TOP (
         .clk          (clk),
         .rst_n        (rst_n),
         .keep_pc      (keep_PC),
-        .branch_op    (take_branch_NextPC),
-        .branch_target(branch_target_NextPC),
+        .branch_op    (pc_redirect_op),
+        .branch_target(pc_redirect_target),
         .pc_if        (pc_IF),
         .pc4_if       (pc4_IF)
     );
@@ -258,6 +264,16 @@ module CPU_TOP (
         .is_lpad_instr  (is_lpad_instr_ID),
         // 非法指令检测
         .is_illegal_instr(is_illegal_instr_ID)
+    );
+
+    StaticBPU u_StaticBPU (
+        .valid_i          (valid_ID),
+        .is_branch_instr_i(is_branch_instr_ID),
+        .jump_type_i      (jump_type_ID),
+        .imm_i            (imm_ID),
+        .branch_target_i  (branch_target_ID),
+        .predict_taken_o  (branch_predicted_ID),
+        .predict_target_o (branch_predicted_target_ID)
     );
 
     always_comb begin
@@ -378,6 +394,11 @@ module CPU_TOP (
         // PC跳转时地址
         .pc_jump_id_i        (branch_target_ID),
         .pc_jump_ex_o        (branch_target_EX),
+        // 分支预测信息
+        .predicted_taken_id_i(branch_predicted_fire_ID),
+        .predicted_taken_ex_o(branch_predicted_EX),
+        .predicted_target_id_i(branch_predicted_target_ID),
+        .predicted_target_ex_o(branch_predicted_target_EX),
         // 前递相关
         .fwd_rD1e_EX         (fwd_rD1e_EX),
         .fwd_rD2e_EX         (fwd_rD2e_EX),
@@ -500,6 +521,8 @@ module CPU_TOP (
     logic [31:0] instr_target_EX;
     logic branch_jal_target_misaligned_EX;
     logic take_branch_normal;
+    logic normal_control_mispredict_EX;
+    logic [31:0] normal_control_recover_target_EX;
     assign jalr_target_EX = {alu_result_EX[31:1], 1'b0};  // JALR target after masking bit 0
     assign branch_jal_target_misaligned_EX = take_branch_normal &&
                                              (jump_type_EX != `JUMP_JALR) &&
@@ -537,7 +560,7 @@ module CPU_TOP (
                                  store_misaligned_EX || shadow_access_fault_EX ||
                                  is_ecall_EX) && valid_EX;
     assign mul_commit_serialize_active = is_mul_instr_EX || mul_busy;
-    assign redirect_from_ex_stage = take_branch_normal ||
+    assign redirect_from_ex_stage = normal_control_mispredict_EX ||
                                     exception_valid_EX ||
                                     (is_mret_EX && valid_EX) ||
                                     (is_sret_EX && valid_EX);
@@ -677,7 +700,14 @@ module CPU_TOP (
         .branch_target_NextPC(branch_target_normal)
     );
 
-    // 优先级: Exception > xRET > Normal branch/jump
+    assign normal_control_mispredict_EX =
+        valid_EX &&
+        ((branch_predicted_EX != take_branch_normal) ||
+         (branch_predicted_EX && take_branch_normal &&
+          (branch_predicted_target_EX != branch_target_normal)));
+    assign normal_control_recover_target_EX = take_branch_normal ? branch_target_normal : pc4_EX;
+
+    // 优先级: Exception > xRET > 错预测恢复
     always_comb begin
         if (exception_valid) begin
             take_branch_NextPC    = 1'b1;
@@ -685,11 +715,18 @@ module CPU_TOP (
         end else if ((is_mret_EX || is_sret_EX) && valid_EX) begin
             take_branch_NextPC    = 1'b1;
             branch_target_NextPC  = xret_target;
+        end else if (normal_control_mispredict_EX) begin
+            take_branch_NextPC    = 1'b1;
+            branch_target_NextPC  = normal_control_recover_target_EX;
         end else begin
-            take_branch_NextPC    = take_branch_normal;
-            branch_target_NextPC  = branch_target_normal;
+            take_branch_NextPC    = 1'b0;
+            branch_target_NextPC  = 32'b0;
         end
     end
+
+    assign branch_predicted_fire_ID = ENABLE_STATIC_BPU && branch_predicted_ID && !keep_PC && !take_branch_NextPC;
+    assign pc_redirect_op = take_branch_NextPC || branch_predicted_fire_ID;
+    assign pc_redirect_target = take_branch_NextPC ? branch_target_NextPC : branch_predicted_target_ID;
 
     logic [31:0] shadow_operand_EX;
     always_comb begin
@@ -888,7 +925,7 @@ module CPU_TOP (
         .rf_wd_MEM         (rf_wd_MEM),
         .rf_wd_WB          (rf_wd_WB),
         .take_branch_NextPC(take_branch_NextPC),
-        .branch_predicted_i(),
+        .branch_predicted_i(branch_predicted_fire_ID),
         // 乘法器状态信号 (4级流水线)
         .mul_stage_busy    (mul_stage_busy),
         .mul_rd_s          (mul_rd_s),

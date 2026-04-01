@@ -60,6 +60,11 @@ module PR_ID_EX (
     // PC跳转时地址
     input  logic [31:0] pc_jump_id_i,
     output logic [31:0] pc_jump_ex_o,
+    // 分支预测信息
+    input  logic        predicted_taken_id_i,
+    output logic        predicted_taken_ex_o,
+    input  logic [31:0] predicted_target_id_i,
+    output logic [31:0] predicted_target_ex_o,
     // 加上前递相关
     input               fwd_rD1e_EX,
     input               fwd_rD2e_EX,
@@ -192,6 +197,20 @@ module PR_ID_EX (
             wr_ex_o <= 5'b0;
         end else begin
             wr_ex_o <= wr_id_i;
+        end
+    end
+
+    // 分支预测信息
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            predicted_taken_ex_o  <= 1'b0;
+            predicted_target_ex_o <= 32'b0;
+        end else if (flush) begin
+            predicted_taken_ex_o  <= 1'b0;
+            predicted_target_ex_o <= 32'b0;
+        end else begin
+            predicted_taken_ex_o  <= predicted_taken_id_i;
+            predicted_target_ex_o <= predicted_target_id_i;
         end
     end
 

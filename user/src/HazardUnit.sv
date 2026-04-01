@@ -23,9 +23,9 @@ module HazardUnit (
     input  logic [31:0]      rf_wd_EX,
     input  logic [31:0]      rf_wd_MEM,
     input  logic [31:0]      rf_wd_WB,
-    // 分支跳转信号
+    // EX级实际恢复/重定向信号
     input  logic             take_branch_NextPC,
-    // 预留的分支预测结果
+    // ID级已发出的预测跳转
     input  logic             branch_predicted_i,
     // 乘法器状态信号 (4级流水线)
     // 约定：mul_stage_busy[0]=S1 ... [3]=S4；mul_rd_s[0]=S1 ... [3]=S4
@@ -183,12 +183,6 @@ module HazardUnit (
     // 顺序提交模式下，不再取消老MUL的写回。
     assign mul_cancel_rd = 5'd0;
 
-    // [TODO] 静态/动态分支预测
-    logic branch_predicted_result;
-    // 目前：不预测，使用EX级实际跳转结果
-    // assign branch_predicted_result = branch_predicted_i;
-    assign branch_predicted_result = take_branch_NextPC;
-
     // ------------------------------------------------------------
     // 流水线冲刷与停顿
     // ------------------------------------------------------------
@@ -201,8 +195,8 @@ module HazardUnit (
     always_comb begin
         keep_pc     = any_hazard;
         stall_IF_ID = any_hazard;
-        flush_IF_ID = branch_predicted_result;
-        flush_ID_EX = (branch_predicted_result || any_hazard);
+        flush_IF_ID = take_branch_NextPC || branch_predicted_i;
+        flush_ID_EX = take_branch_NextPC || any_hazard;
     end
 
 endmodule
