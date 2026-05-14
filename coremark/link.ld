@@ -3,8 +3,8 @@ ENTRY(_start)
 
 SECTIONS
 {
-  /* 你的 CPU reset 从 0 开始取指 */
-  . = 0x80000000;
+  /* CPU reset 从 0 开始取指，PMA 教学模型只暴露低 64KiB。 */
+  . = 0x00000000;
 
   /* 启动入口，放在最前面 */
   .text.init : {
@@ -26,8 +26,8 @@ SECTIONS
     *(COMMON)
   }
 
-  _shadow_stack_top = 0x8000C000;
-  _stack_top        = 0x8000FF00;
+  _shadow_stack_top = 0x0000C000;
+  _stack_top        = 0x0000FF00;
   _end              = .;
 }
 

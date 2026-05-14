@@ -7,6 +7,7 @@
 - [x] 支持 `NONE` / `STATIC` / `DYNAMIC_1bit` / `GSHARE` 分支预测
 - [x] 支持 Zmmul 扩展  
 - [x] 支持基础 U/S/M-Mode 与常用特权 CSR
+- [x] 支持教学版单 entry PMP + 低 64KiB PMA 检查
 - [x] 支持 Zicfiss / Zicfilp 已实现子集
 - [x] 支持基本的异常处理机制
 - [x] 通过官方[riscv-tests](https://github.com/riscv-software-src/riscv-tests) RV32I_Zicsr_Zmmul验证（不含`ECALL`与`EBRAK`指令，不含非对齐访存相关指令，仅实现非对齐访存异常）
@@ -67,6 +68,8 @@ EsCute-RV
    │     └── verilog                  # 自动化测试用 Verilog 反编译内存文件
    ├── sim
    │  ├── tb_CPU_TOP.sv               # 顶层CPU仿真文件
+   │  ├── tb_PMP_PMA_Checker.sv       # PMP/PMA 组合检查器定向测试
+   │  ├── tb_PMP_PMA_CPU.sv           # PMP/PMA CPU级取指异常定向测试
    │  ├── tb_Zicfi.sv                 # Zicfiss / Zicfilp 定向测试
    │  ├── simple_counter.sv           # 简单计数器模块
    │  └── tb_simple_counter.sv        # 简单计数器测试文件 用于测试环境是否正确
@@ -94,6 +97,7 @@ EsCute-RV
       ├── MUL.sv                      # 乘法运算模块
       ├── CSR.sv                      # 控制状态寄存器模块
       ├── NextPC_Generator.sv         # 下一条指令地址生成模块
+      ├── PMP_PMA_Checker.sv          # 教学版 PMP/PMA 访问检查模块
       │
       ├── DRAM.sv                     # 同步数据存储器模块
       ├── LoadUnit.sv                 # 读取单元模块
@@ -106,6 +110,85 @@ EsCute-RV
       ├── PR_MEM_WB.sv                # MEM/WB级 流水线寄存器模块
       └── RegisterF.sv                # 寄存器堆模块
       
+```
+
+## PMP/PMA 教学模型
+
+添加了一个简易的 PMP/PMA 逻辑：
+
+- PMA 固定开放低 64KiB 物理地址窗口：`0x0000_0000` 到 `0x0000_FFFF`
+- 高地址取指/访存不再别名到低地址，而是产生 access fault
+- PMP 只实现 `pmpcfg0[7:0]` + `pmpaddr0` 一个 entry，支持 `OFF/TOR/NA4/NAPOT`
+- `pmpcfg0.A=OFF` 时 PMP 关闭，便于保留现有 S 模式演示程序
+- entry 生效后，S/U 未命中或权限不足会 fault；M 态默认旁路，设置 `L` 后也受该 entry 约束
+
+相关文件：
+
+- [PMP_PMA_Checker.sv](user/src/PMP_PMA_Checker.sv)：组合访问检查逻辑
+- [CPU_TOP.sv](user/src/CPU_TOP.sv)：IF 取指 fault、EX load/store fault 和异常上报
+- [CSR.sv](user/src/CSR.sv)：`pmpcfg0/pmpaddr0` CSR 存储、锁定位和只暴露 entry0
+- [tb_PMP_PMA_Checker.sv](user/sim/tb_PMP_PMA_Checker.sv)：组合逻辑定向测试
+- [tb_PMP_PMA_CPU.sv](user/sim/tb_PMP_PMA_CPU.sv)：CPU 级取指越界定向测试
+
+### PMP/PMA 配置示例
+
+启动复位后，`pmpcfg0.A=OFF`，PMP 检查关闭；PMA 仍固定限制在低 64KiB。软件如果需要让 S/U 态正常访问低 64KiB，可以在 M 态初始化阶段配置一个覆盖低 64KiB 的 NAPOT entry：
+
+```asm
+# NAPOT: base = 0x00000000, size = 64 KiB
+# pmpaddr0 = (base >> 2) | ((size - 1) >> 3) = 0x1fff
+li t0, 0x1fff
+csrw pmpaddr0, t0
+
+# A=NAPOT | R | W | X = 0x18 | 0x01 | 0x02 | 0x04 = 0x1f
+li t0, 0x1f
+csrw pmpcfg0, t0
+```
+
+如果只想开放一个小窗口，也可以配置较小的 NAPOT 区间。例如下面配置 `[0x1000, 0x1010)` 为只读和可执行，不允许写：
+
+```asm
+# 16-byte NAPOT region at 0x1000
+li t0, 0x401
+csrw pmpaddr0, t0
+
+# A=NAPOT | R | X
+li t0, 0x1d
+csrw pmpcfg0, t0
+```
+
+当前实现只检查 `pmpcfg0[7:0]`，位定义如下：
+
+- `R = 0x01`
+- `W = 0x02`
+- `X = 0x04`
+- `A=TOR = 0x08`
+- `A=NA4 = 0x10`
+- `A=NAPOT = 0x18`
+- `L = 0x80`
+
+`L` 置位后，M 态也会受该 entry 约束，并且当前实现不再允许继续写 `pmpcfg0/pmpaddr0`，直到复位。调试阶段建议先不要置 `L`。
+
+### PMP/PMA 异常与测试
+
+PMA/PMP fault 会在流水线中转成标准 access fault：
+
+- IF 取指 fault：`instruction access fault`，cause = `1`，`mtval/stval` 为取指 PC
+- EX load fault：`load access fault`，cause = `5`，`mtval/stval` 为访存地址
+- EX store fault：`store access fault`，cause = `7`，`mtval/stval` 为访存地址
+
+可以用下面两个定向测试快速验证：
+
+```bash
+iverilog -g2012 -Wall -I user/src -I user/src/include \
+  -o /tmp/tb_PMP_PMA_Checker.vvp \
+  user/sim/tb_PMP_PMA_Checker.sv user/src/PMP_PMA_Checker.sv
+vvp /tmp/tb_PMP_PMA_Checker.vvp
+
+iverilog -g2012 -Wall -I user/src -I user/src/include \
+  -o /tmp/tb_PMP_PMA_CPU.vvp \
+  user/sim/tb_PMP_PMA_CPU.sv user/src/*.sv
+vvp /tmp/tb_PMP_PMA_CPU.vvp
 ```
 
 ## 分支预测说明

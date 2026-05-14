@@ -2,7 +2,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#define TOHOST (*(volatile uint32_t*)0x8D000720)
+#define TOHOST (*(volatile uint32_t*)0x00007F00)
 
 
 static inline void putch(char c)

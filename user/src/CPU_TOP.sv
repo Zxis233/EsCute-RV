@@ -102,11 +102,14 @@ module CPU_TOP #(
     logic        current_lpe_enabled;
     logic        elp_expected;
     logic [31:0] ssp_value;
+    logic [31:0] pmpcfg0_value;
+    logic [31:0] pmpaddr0_value;
 
     // 非法指令检测信号
     logic        is_illegal_instr_ID, is_illegal_instr_EX;
     logic        privileged_illegal_instr_ID;
     logic        illegal_instr_exception_effective_ID;
+    logic        instr_access_fault_exception_effective_ID;
     logic        software_check_exception_effective_ID;
     logic        flushes_id_exception_ID;
     logic        redirect_from_ex_stage;
@@ -151,6 +154,11 @@ module CPU_TOP #(
     logic [31:0] ssp_update_data;
     logic        elp_update_valid;
     logic        elp_update_expected;
+    logic        fetch_access_fault_IF;
+    logic        fetch_access_fault_ID;
+    logic        instr_access_fault_exception_ID;
+    logic        load_access_fault_EX;
+    logic        store_access_fault_EX;
 // ================= 各级之间的信号 ===================
 
 // verilog_format:on
@@ -179,6 +187,16 @@ module CPU_TOP #(
     // 这里取PC的高14位作为IROM地址 这样输出的地址就是字地址
     assign pc       = pc_IF[15:2];
 
+    PMP_PMA_Checker u_PMP_PMA_IF (
+        .addr        (pc_IF),
+        .access_type (`PMP_ACC_FETCH),
+        .access_size (`PMP_SIZE_4B),
+        .priv_mode   (current_priv_mode),
+        .pmpcfg0     (pmpcfg0_value),
+        .pmpaddr0    (pmpaddr0_value),
+        .access_fault(fetch_access_fault_IF)
+    );
+
     // PC寄存器
     logic        take_branch_NextPC;
     logic [31:0] branch_target_NextPC;
@@ -206,10 +224,12 @@ module CPU_TOP #(
         .pc_if_i         (pc_IF),
         .pc4_if_i        (pc4_IF),
         .instr_if_i      (instr_IF),
+        .fetch_access_fault_if_i(fetch_access_fault_IF),
         // IF级输出 给ID级输入
         .pc_id_o         (pc_ID),
         .pc4_id_o        (pc4_ID),
         .instr_id_o      (instr_ID),
+        .fetch_access_fault_id_o(fetch_access_fault_ID),
         // 判断指令是否有效
         // 流水线冲刷时需要将指令置为无效
         .instr_valid_if_i(valid_IF),
@@ -286,7 +306,7 @@ module CPU_TOP #(
     ) u_BPU (
         .clk               (clk),
         .rst_n             (rst_n),
-        .valid_i           (valid_ID),
+        .valid_i           (valid_ID && !fetch_access_fault_ID),
         .pc_i              (pc_ID),
         .is_branch_instr_i (is_branch_instr_ID),
         .jump_type_i       (jump_type_ID),
@@ -341,12 +361,15 @@ module CPU_TOP #(
                           (pc_ID[1:0] == 2'b00) &&
                           ((instr_ID[31:12] == 20'b0) ||
                            (instr_ID[31:12] == x7_effective_ID[31:12]));
-    assign software_check_exception_ID = valid_ID && current_lpe_enabled && elp_expected && !lpad_pass_ID;
+    assign instr_access_fault_exception_ID = fetch_access_fault_ID && valid_ID;
+    assign software_check_exception_ID = valid_ID && !fetch_access_fault_ID &&
+                                         current_lpe_enabled && elp_expected && !lpad_pass_ID;
     assign software_check_tval_ID = `SOFTCHK_LPAD_FAULT;
 
     // 早期非法指令异常检测 (ID级)
     // 检测结果会在ID级冻结，等更老指令排空后再触发trap。
-    assign illegal_instr_exception_ID = (is_illegal_instr_ID || privileged_illegal_instr_ID) && valid_ID;
+    assign illegal_instr_exception_ID = (is_illegal_instr_ID || privileged_illegal_instr_ID) &&
+                                        valid_ID && !fetch_access_fault_ID;
     assign illegal_instr_pc_ID = pc_ID;
     assign illegal_instr_encoding_ID = instr_ID;
     assign csr_implemented_ID = csr_is_implemented(csr_addr_ID);
@@ -532,6 +555,65 @@ module CPU_TOP #(
         (((sl_type_EX == `MEM_SSPUSH) || (sl_type_EX == `MEM_SSPOPCHK)) ? `MEM_NOP : sl_type_EX);
     assign shadow_addr_EX = (sl_type_EX == `MEM_SSPUSH) ? (ssp_value - 32'd4) : ssp_value;
 
+    logic [31:0] mem_addr_EX;
+    logic [ 1:0] mem_access_size_EX;
+    logic        mem_load_check_EX;
+    logic        mem_store_check_EX;
+    logic        mem_access_fault_raw_EX;
+
+    assign mem_addr_EX = shadow_mem_active_EX ? shadow_addr_EX : alu_result_EX;
+
+    always_comb begin
+        mem_access_size_EX = `PMP_SIZE_4B;
+        mem_load_check_EX  = 1'b0;
+        mem_store_check_EX = 1'b0;
+
+        unique case (sl_type_effective_EX)
+            `MEM_LB, `MEM_LBU: begin
+                mem_access_size_EX = `PMP_SIZE_1B;
+                mem_load_check_EX  = 1'b1;
+            end
+            `MEM_LH, `MEM_LHU: begin
+                mem_access_size_EX = `PMP_SIZE_2B;
+                mem_load_check_EX  = 1'b1;
+            end
+            `MEM_LW, `MEM_SSPOPCHK: begin
+                mem_access_size_EX = `PMP_SIZE_4B;
+                mem_load_check_EX  = 1'b1;
+            end
+            `MEM_SB: begin
+                mem_access_size_EX = `PMP_SIZE_1B;
+                mem_store_check_EX = 1'b1;
+            end
+            `MEM_SH: begin
+                mem_access_size_EX = `PMP_SIZE_2B;
+                mem_store_check_EX = 1'b1;
+            end
+            `MEM_SW, `MEM_SSPUSH: begin
+                mem_access_size_EX = `PMP_SIZE_4B;
+                mem_store_check_EX = 1'b1;
+            end
+            default: begin
+                mem_access_size_EX = `PMP_SIZE_4B;
+                mem_load_check_EX  = 1'b0;
+                mem_store_check_EX = 1'b0;
+            end
+        endcase
+    end
+
+    PMP_PMA_Checker u_PMP_PMA_MEM (
+        .addr        (mem_addr_EX),
+        .access_type (mem_store_check_EX ? `PMP_ACC_STORE : `PMP_ACC_LOAD),
+        .access_size (mem_access_size_EX),
+        .priv_mode   (current_priv_mode),
+        .pmpcfg0     (pmpcfg0_value),
+        .pmpaddr0    (pmpaddr0_value),
+        .access_fault(mem_access_fault_raw_EX)
+    );
+
+    assign load_access_fault_EX = valid_EX && mem_load_check_EX && mem_access_fault_raw_EX;
+    assign store_access_fault_EX = valid_EX && mem_store_check_EX && mem_access_fault_raw_EX;
+
     // Exception handling:
     // 异常分为三类：
     // 1. ID级异常：非法指令 / LPAD software-check，先冻结在ID级等待老指令排空
@@ -588,7 +670,8 @@ module CPU_TOP #(
     // EX级异常 (不包括非法指令，非法指令在ID级处理)
     assign shadow_access_fault_EX = shadow_mem_active_EX && (shadow_addr_EX[1:0] != 2'b00);
     assign exception_valid_EX = (instr_misaligned_EX || load_misaligned_EX ||
-                                 store_misaligned_EX || shadow_access_fault_EX ||
+                                 store_misaligned_EX || load_access_fault_EX ||
+                                 store_access_fault_EX || shadow_access_fault_EX ||
                                  is_ecall_EX) && valid_EX;
     assign bpu_update_valid_EX = valid_EX && is_branch_instr_EX && !exception_valid_EX;
     assign mul_commit_serialize_active = is_mul_instr_EX || mul_busy;
@@ -597,7 +680,8 @@ module CPU_TOP #(
                                     (is_mret_EX && valid_EX) ||
                                     (is_sret_EX && valid_EX);
     assign id_exception_candidate_ID =
-        software_check_exception_ID || illegal_instr_exception_ID;
+        instr_access_fault_exception_ID || software_check_exception_ID ||
+        illegal_instr_exception_ID;
     assign older_pipeline_active_for_id_exception =
         valid_EX || valid_MEM || valid_WB || mul_busy || mul_rf_we_o;
     assign id_exception_wait =
@@ -611,9 +695,13 @@ module CPU_TOP #(
                                      shadow_serialize_EX || shadow_serialize_MEM ||
                                      shadow_serialize_WB;
     assign software_check_exception_effective_ID =
-        software_check_exception_ID && id_exception_ready;
+        software_check_exception_ID && id_exception_ready &&
+        !instr_access_fault_exception_ID;
     assign illegal_instr_exception_effective_ID =
-        illegal_instr_exception_ID && id_exception_ready && !software_check_exception_ID;
+        illegal_instr_exception_ID && id_exception_ready &&
+        !instr_access_fault_exception_ID && !software_check_exception_ID;
+    assign instr_access_fault_exception_effective_ID =
+        instr_access_fault_exception_ID && id_exception_ready;
 
     // 总异常信号：EX级异常 OR 排空后的ID级异常
     // 优先级：EX级异常 > ID级异常
@@ -622,6 +710,7 @@ module CPU_TOP #(
     // ID级异常会先冻结在ID级，直到更老的流水线状态完成提交。
     assign exception_valid = sspopchk_fault_WB ||
                              exception_valid_EX ||
+                             instr_access_fault_exception_effective_ID ||
                              software_check_exception_effective_ID ||
                              illegal_instr_exception_effective_ID;
 
@@ -643,7 +732,15 @@ module CPU_TOP #(
         end else if (store_misaligned_EX && valid_EX) begin
             exception_pc    = pc_EX;
             exception_cause = `EXC_STORE_MISALIGNED;
-            exception_tval  = alu_result_EX;
+            exception_tval  = mem_addr_EX;
+        end else if (load_access_fault_EX && valid_EX) begin
+            exception_pc    = pc_EX;
+            exception_cause = `EXC_LOAD_ACCESS_FAULT;
+            exception_tval  = mem_addr_EX;
+        end else if (store_access_fault_EX && valid_EX) begin
+            exception_pc    = pc_EX;
+            exception_cause = `EXC_STORE_ACCESS_FAULT;
+            exception_tval  = mem_addr_EX;
         end else if (shadow_access_fault_EX && valid_EX) begin
             exception_pc    = pc_EX;
             exception_cause = `EXC_STORE_ACCESS_FAULT;
@@ -656,6 +753,10 @@ module CPU_TOP #(
                 default: exception_cause = `EXC_ECALL_M;
             endcase
             exception_tval  = 32'b0;
+        end else if (instr_access_fault_exception_effective_ID) begin
+            exception_pc    = pc_ID;
+            exception_cause = `EXC_INST_ACCESS_FAULT;
+            exception_tval  = pc_ID;
         end else if (software_check_exception_effective_ID) begin
             exception_pc    = pc_ID;
             exception_cause = `EXC_SOFTWARE_CHECK;
@@ -704,7 +805,9 @@ module CPU_TOP #(
         .current_sse_enabled(current_sse_enabled),
         .current_lpe_enabled(current_lpe_enabled),
         .elp_expected   (elp_expected),
-        .ssp_value      (ssp_value)
+        .ssp_value      (ssp_value),
+        .pmpcfg0_value  (pmpcfg0_value),
+        .pmpaddr0_value (pmpaddr0_value)
     );
 
     assign sspopchk_fault_WB = valid_WB && (sl_type_WB == `MEM_SSPOPCHK) &&
@@ -767,7 +870,8 @@ module CPU_TOP #(
         end
     end
 
-    assign branch_predicted_fire_ID = (BPU_TYPE != 2'b00) && branch_predicted_ID && !keep_PC && !take_branch_NextPC;
+    assign branch_predicted_fire_ID = (BPU_TYPE != 2'b00) && branch_predicted_ID &&
+                                      !fetch_access_fault_ID && !keep_PC && !take_branch_NextPC;
     assign pc_redirect_op = take_branch_NextPC || branch_predicted_fire_ID;
     assign pc_redirect_target = take_branch_NextPC ? branch_target_NextPC : branch_predicted_target_ID;
 

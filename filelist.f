@@ -13,6 +13,7 @@ read_slang
 ./user/src/Dynamic_Gshare_Predictor.sv 
 ./user/src/BPU.sv 
 ./user/src/NextPC_Generator.sv 
+./user/src/PMP_PMA_Checker.sv 
 ./user/src/PR_EX_MEM.sv 
 ./user/src/DRAM.sv 
 ./user/src/PR_MEM_WB.sv 

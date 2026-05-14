@@ -75,7 +75,6 @@
 
 // 配置选项
 `define INITIAL_PC 32'h0000_0000  // 初始PC地址
-// `define INITIAL_PC 32'h8000_0000
 
 // verilog_format: off
 // ================== 指令集 定义 ==================
@@ -277,6 +276,7 @@
 
 // ================== Exception Cause 定义 ==================
     `define EXC_INST_MISALIGNED        32'd0
+    `define EXC_INST_ACCESS_FAULT      32'd1
     `define EXC_ILLEGAL_INSTR          32'd2
     `define EXC_BREAKPOINT             32'd3
     `define EXC_LOAD_MISALIGNED        32'd4
@@ -287,6 +287,28 @@
     `define EXC_ECALL_S                32'd9
     `define EXC_ECALL_M                32'd11
     `define EXC_SOFTWARE_CHECK         32'd18
+
+// ================== PMP/PMA 教学版定义 ==================
+    `define PMP_R                      8'h01
+    `define PMP_W                      8'h02
+    `define PMP_X                      8'h04
+    `define PMP_A_MASK                 8'h18
+    `define PMP_A_OFF                  8'h00
+    `define PMP_A_TOR                  8'h08
+    `define PMP_A_NA4                  8'h10
+    `define PMP_A_NAPOT                8'h18
+    `define PMP_L                      8'h80
+
+    `define PMA_LOW_MEM_BASE           32'h0000_0000
+    `define PMA_LOW_MEM_LIMIT          32'h0001_0000
+
+    `define PMP_ACC_FETCH              2'd0
+    `define PMP_ACC_LOAD               2'd1
+    `define PMP_ACC_STORE              2'd2
+
+    `define PMP_SIZE_1B                2'd0
+    `define PMP_SIZE_2B                2'd1
+    `define PMP_SIZE_4B                2'd2
 
 // ================== Software-Check 定义 ==================
     `define SOFTCHK_LPAD_FAULT         32'd2

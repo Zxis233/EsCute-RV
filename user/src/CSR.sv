@@ -42,7 +42,9 @@ module CSR (
     output logic        current_sse_enabled,
     output logic        current_lpe_enabled,
     output logic        elp_expected,
-    output logic [31:0] ssp_value
+    output logic [31:0] ssp_value,
+    output logic [31:0] pmpcfg0_value,
+    output logic [31:0] pmpaddr0_value
 );
 
     // 机器级 CSR
@@ -185,6 +187,17 @@ module CSR (
         end
     endfunction
 
+    function automatic [31:0] sanitize_pmpcfg0(input logic [31:0] new_value);
+        logic [7:0] cfg;
+        begin
+            cfg = new_value[7:0] & (`PMP_R | `PMP_W | `PMP_X | `PMP_A_MASK | `PMP_L);
+            if (cfg[1] && !cfg[0]) begin
+                cfg[1] = 1'b0;
+            end
+            sanitize_pmpcfg0 = {24'b0, cfg};
+        end
+    endfunction
+
     // 对 sstatus 的写入合并到 mstatus 中
     function automatic [31:0] update_sstatus_view(input logic [31:0] old_mstatus,
                                                   input logic [31:0] new_sstatus);
@@ -317,7 +330,7 @@ module CSR (
         if (!rst_n) begin
             mstatus    <= 32'h0000_1800;
             mstatush   <= 32'h0000_0000;
-            mtvec      <= 32'h0114_5140;
+            mtvec      <= 32'h0000_0000;
             mepc       <= 32'h0000_0000;
             mcause     <= 32'h0000_0000;
             mscratch   <= 32'h0000_0000;
@@ -333,7 +346,7 @@ module CSR (
             mnstatus   <= 32'h0000_0000;
             pmpcfg0    <= 32'h0000_0000;
             pmpaddr0   <= 32'h0000_0000;
-            stvec      <= 32'h0114_5140;
+            stvec      <= 32'h0000_0000;
             scounteren <= 32'h0000_0000;
             senvcfg    <= 32'h0000_0000;
             sepc       <= 32'h0000_0000;
@@ -417,8 +430,16 @@ module CSR (
                 `CSR_MTVAL:      mtval <= csr_new_value;
                 `CSR_MIP:        mip <= csr_new_value;
                 `CSR_MSECCFG:    mseccfg <= sanitize_mseccfg(csr_new_value);
-                `CSR_PMPCFG0:    pmpcfg0 <= csr_new_value;
-                `CSR_PMPADDR0:   pmpaddr0 <= csr_new_value;
+                `CSR_PMPCFG0: begin
+                    if (!pmpcfg0[7]) begin
+                        pmpcfg0 <= sanitize_pmpcfg0(csr_new_value);
+                    end
+                end
+                `CSR_PMPADDR0: begin
+                    if (!pmpcfg0[7]) begin
+                        pmpaddr0 <= csr_new_value;
+                    end
+                end
                 default:         ;
             endcase
         end
@@ -448,5 +469,7 @@ module CSR (
     assign current_lpe_enabled = landing_pad_enabled(priv_mode, menvcfg, senvcfg_view, mseccfg);
     assign elp_expected = elp_state;
     assign ssp_value = ssp;
+    assign pmpcfg0_value = pmpcfg0;
+    assign pmpaddr0_value = pmpaddr0;
 
 endmodule

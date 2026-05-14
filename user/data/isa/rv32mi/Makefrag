@@ -15,6 +15,7 @@ rv32mi_sc_tests = \
 	lw-misaligned \
 	sh-misaligned \
 	sw-misaligned \
+	mul-precise-exception \
 	scall \
 
 rv32mi_p_tests = $(addprefix rv32mi-p-, $(rv32mi_sc_tests))
