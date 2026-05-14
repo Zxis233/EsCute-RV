@@ -80,6 +80,7 @@ module CPU_TOP #(
 
     logic flush_IF_ID, flush_ID_EX;
     logic keep_PC, stall_IF_ID;
+    logic hazard_keep_PC, hazard_stall_IF_ID, hazard_flush_IF_ID, hazard_flush_ID_EX;
     logic pc_redirect_op;
     logic [31:0] pc_redirect_target;
 
@@ -111,6 +112,10 @@ module CPU_TOP #(
     logic        redirect_from_ex_stage;
     logic        csr_implemented_ID;
     logic        csr_implemented_EX;
+    logic        id_exception_candidate_ID;
+    logic        older_pipeline_active_for_id_exception;
+    logic        id_exception_wait;
+    logic        id_exception_ready;
 
     // Exception/Trap相关信号
     logic        exception_valid;
@@ -122,7 +127,7 @@ module CPU_TOP #(
     logic [31:0] xret_target;
 
     // 提前检测的非法指令异常 (在ID级检测)
-    // 这样可以在非法指令进入EX之前就触发异常，防止其前一条指令提交
+    // 触发trap前会等待更老指令完成提交，保证ID级异常是精确的。
     logic        illegal_instr_exception_ID;
     logic [31:0] illegal_instr_pc_ID;
     logic [31:0] illegal_instr_encoding_ID;
@@ -340,8 +345,7 @@ module CPU_TOP #(
     assign software_check_tval_ID = `SOFTCHK_LPAD_FAULT;
 
     // 早期非法指令异常检测 (ID级)
-    // 当检测到非法指令时，在ID级就触发异常
-    // 这样可以防止非法指令前面的指令(在EX级)提交
+    // 检测结果会在ID级冻结，等更老指令排空后再触发trap。
     assign illegal_instr_exception_ID = (is_illegal_instr_ID || privileged_illegal_instr_ID) && valid_ID;
     assign illegal_instr_pc_ID = pc_ID;
     assign illegal_instr_encoding_ID = instr_ID;
@@ -529,9 +533,10 @@ module CPU_TOP #(
     assign shadow_addr_EX = (sl_type_EX == `MEM_SSPUSH) ? (ssp_value - 32'd4) : ssp_value;
 
     // Exception handling:
-    // 异常分为两类：
-    // 1. ID级异常：非法指令 - 需要早期检测以防止其前面的指令提交
-    // 2. EX级异常：地址未对齐、ECALL - 在执行阶段检测
+    // 异常分为三类：
+    // 1. ID级异常：非法指令 / LPAD software-check，先冻结在ID级等待老指令排空
+    // 2. EX级异常：地址未对齐、ECALL，在执行阶段检测
+    // 3. WB级异常：SSPOPCHK 比较失败，在可判定结果的WB级上报
     //
     // - Instruction address misaligned: mcause = 0, mtval = misaligned address
     // - Illegal instruction: mcause = 2, mtval = instruction encoding
@@ -591,19 +596,30 @@ module CPU_TOP #(
                                     exception_valid_EX ||
                                     (is_mret_EX && valid_EX) ||
                                     (is_sret_EX && valid_EX);
+    assign id_exception_candidate_ID =
+        software_check_exception_ID || illegal_instr_exception_ID;
+    assign older_pipeline_active_for_id_exception =
+        valid_EX || valid_MEM || valid_WB || mul_busy || mul_rf_we_o;
+    assign id_exception_wait =
+        id_exception_candidate_ID && older_pipeline_active_for_id_exception &&
+        !redirect_from_ex_stage && !sspopchk_fault_WB;
+    assign id_exception_ready =
+        id_exception_candidate_ID && !older_pipeline_active_for_id_exception &&
+        !redirect_from_ex_stage && !sspopchk_fault_WB;
     assign flushes_id_exception_ID = redirect_from_ex_stage || sspopchk_fault_WB ||
-                                     mul_commit_serialize_active || shadow_serialize_EX ||
-                                     shadow_serialize_MEM || shadow_serialize_WB;
+                                     id_exception_wait || mul_commit_serialize_active ||
+                                     shadow_serialize_EX || shadow_serialize_MEM ||
+                                     shadow_serialize_WB;
     assign software_check_exception_effective_ID =
-        software_check_exception_ID && !flushes_id_exception_ID;
+        software_check_exception_ID && id_exception_ready;
     assign illegal_instr_exception_effective_ID =
-        illegal_instr_exception_ID && !flushes_id_exception_ID && !software_check_exception_ID;
+        illegal_instr_exception_ID && id_exception_ready && !software_check_exception_ID;
 
-    // 总异常信号：EX级异常 OR ID级非法指令异常
+    // 总异常信号：EX级异常 OR 排空后的ID级异常
     // 优先级：EX级异常 > ID级异常
     // 注意：当EX级有有效的跳转/分支时，ID级的指令将被flush，
     // 所以ID级的非法指令异常不应该生效
-    // 这防止了跳转到数据区域时，数据被误认为非法指令而触发异常
+    // ID级异常会先冻结在ID级，直到更老的流水线状态完成提交。
     assign exception_valid = sspopchk_fault_WB ||
                              exception_valid_EX ||
                              software_check_exception_effective_ID ||
@@ -801,7 +817,7 @@ module CPU_TOP #(
 
     // 异常处理和流水线冲刷：
     // - EX级异常需要阻止 faulting 指令进入 MEM
-    // - ID级非法指令只应杀掉它自己和更年轻的指令，不能回滚更老的 EX/MEM/WB 指令
+    // - WB级 SSPOPCHK fault 需要清掉自身和后续提交路径
     logic flush_EX_MEM;
     logic flush_MEM_WB;
     assign flush_EX_MEM = exception_valid_EX || sspopchk_fault_WB;
@@ -977,16 +993,21 @@ module CPU_TOP #(
         .shadow_serialize_MEM(shadow_serialize_MEM),
         .shadow_serialize_WB(shadow_serialize_WB),
         // 输出
-        .keep_pc           (keep_PC),
-        .stall_IF_ID       (stall_IF_ID),
-        .flush_IF_ID       (flush_IF_ID),
-        .flush_ID_EX       (flush_ID_EX),
+        .keep_pc           (hazard_keep_PC),
+        .stall_IF_ID       (hazard_stall_IF_ID),
+        .flush_IF_ID       (hazard_flush_IF_ID),
+        .flush_ID_EX       (hazard_flush_ID_EX),
         .fwd_rD1e_EX       (fwd_rD1e_EX),
         .fwd_rD2e_EX       (fwd_rD2e_EX),
         .fwd_rD1_EX        (fwd_rD1_EX),
         .fwd_rD2_EX        (fwd_rD2_EX),
         .mul_cancel_rd     (mul_cancel_rd)
     );
+
+    assign keep_PC     = hazard_keep_PC || id_exception_wait;
+    assign stall_IF_ID = hazard_stall_IF_ID || id_exception_wait;
+    assign flush_IF_ID = hazard_flush_IF_ID;
+    assign flush_ID_EX = hazard_flush_ID_EX || id_exception_wait;
 
     logic [1:0] check_csr_ID, check_csr_EX;
     assign check_csr_ID = $countones({is_csr_instr_ID,is_ecall_ID, is_mret_ID, is_sret_ID});
