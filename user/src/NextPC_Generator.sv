@@ -8,10 +8,10 @@ module NextPC_Generator (
     input  logic [31:0] alu_result,
     // PC加立即数输入
     input  logic [31:0] branch_target_i,
-    // ALU标志位输入
+    // ALU/比较标志位输入
     input  logic        alu_zero,
-    input  logic        alu_sign,
-    input  logic        alu_unsigned,
+    input  logic        alu_signed_less,
+    input  logic        alu_unsigned_less,
     // PC控制输出
     output logic        take_branch,
     output logic [31:0] branch_target_NextPC
@@ -25,10 +25,10 @@ module NextPC_Generator (
             unique case (branch_type)
                 `BRANCH_BEQ:  take_branch = alu_zero;
                 `BRANCH_BNE:  take_branch = ~alu_zero;
-                `BRANCH_BLT:  take_branch = alu_sign;
-                `BRANCH_BGE:  take_branch = ~alu_sign;
-                `BRANCH_BLTU: take_branch = alu_unsigned;
-                `BRANCH_BGEU: take_branch = ~alu_unsigned;
+                `BRANCH_BLT:  take_branch = alu_signed_less;
+                `BRANCH_BGE:  take_branch = ~alu_signed_less;
+                `BRANCH_BLTU: take_branch = alu_unsigned_less;
+                `BRANCH_BGEU: take_branch = ~alu_unsigned_less;
                 default:      take_branch = 1'b0;
             endcase
         end else              take_branch = 1'b0;

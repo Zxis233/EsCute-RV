@@ -110,6 +110,9 @@ module PR_ID_EX #(
         if (!rst_n) begin
             rD1_o <= 32'b0;
             rD2_o <= 32'b0;
+        end else if (flush) begin
+            rD1_o <= 32'b0;
+            rD2_o <= 32'b0;
         end else begin
             rD1_o <= rD1_forwarded;
             rD2_o <= rD2_forwarded;
@@ -147,7 +150,7 @@ module PR_ID_EX #(
             is_auipc_ex_o     <= 1'b0;
             alu_src2_sel_ex_o <= 1'b0;
             dram_we_ex_o      <= 1'b0;
-            sl_type_ex_o      <= sl_type_id_i;
+            sl_type_ex_o      <= 4'b0;
             imm_ex_o          <= 32'b0;
         end else begin
             alu_op_ex_o       <= alu_op_id_i;
@@ -171,7 +174,7 @@ module PR_ID_EX #(
             wd_sel_ex_o      <= 3'b0;
             pc_jump_ex_o     <= 32'b0;
 
-        end else if (flush && pc_id_i) begin  // 确保不是因为流水线暂停引起的冲刷
+        end else if (flush) begin
             pc_ex_o          <= 32'b0;
             pc4_ex_o         <= 32'b0;
             instr_ex_o       <= 32'b0;

@@ -458,6 +458,7 @@ module CPU_TOP #(
     logic alu_zero;
     logic alu_sign;
     logic alu_unsigned;
+    logic alu_signed_less;
     ALU u_ALU (
         .alu_op      (alu_op_EX),
         .src1        (rf_rd1_EX),
@@ -469,6 +470,8 @@ module CPU_TOP #(
         .sign        (alu_sign),
         .alu_unsigned(alu_unsigned)
     );
+
+    assign alu_signed_less = ($signed(rf_rd1_EX) < $signed(rf_rd2_EX));
 
     // 乘法器 - 四级流水线，与EX级并行
     // 乘法指令在EX级启动，结果在4个周期后可用
@@ -718,8 +721,8 @@ module CPU_TOP #(
         .alu_result          (alu_result_EX),
         .branch_target_i     (branch_target_EX),
         .alu_zero            (alu_zero),
-        .alu_sign            (alu_sign),
-        .alu_unsigned        (alu_unsigned),
+        .alu_signed_less     (alu_signed_less),
+        .alu_unsigned_less   (alu_unsigned),
         .take_branch         (take_branch_normal),
         .branch_target_NextPC(branch_target_normal)
     );
