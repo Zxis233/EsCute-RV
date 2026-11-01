@@ -4,26 +4,69 @@ OBJDUMP      := $(RISCV_PREFIX)objdump
 
 ARCH_FLAGS   := -march=rv32i_zicsr_zmmul_zicfiss_zicfilp -mabi=ilp32
 COMMON_FLAGS := $(ARCH_FLAGS) -ffreestanding -fno-builtin -nostdlib -nostartfiles -O2 -Wall -Wextra
-ROP_FLAGS    := -fcf-protection=return -fno-inline -fno-optimize-sibling-calls
+CFI_INSERT   ?= 1
+ZICFI_RUNTIME_ENABLE ?= 1
 
-TARGET       := rop_zicfiss_fail
+CFI_STABLE_FLAGS := -fno-inline -fno-optimize-sibling-calls
+
+ifeq ($(CFI_INSERT),1)
+ROP_FLAGS ?= -fcf-protection=return $(CFI_STABLE_FLAGS)
+CFI_SUFFIX := cfi_on
+else
+ROP_FLAGS ?=
+CFI_SUFFIX := cfi_off
+endif
+
+ifeq ($(ZICFI_RUNTIME_ENABLE),1)
+RT_SUFFIX := rt_on
+else
+RT_SUFFIX := rt_off
+endif
+
+CPPFLAGS += -DZICFI_RUNTIME_ENABLE=$(ZICFI_RUNTIME_ENABLE)
+
+TARGET       ?= rop_zicfiss_$(CFI_SUFFIX)_$(RT_SUFFIX)
 ELF          := $(TARGET).elf
 STEXT        := $(TARGET).SText
-HEX          := ../../hex/$(TARGET).hex
+HEX_DIR      := ../../hex
+HEX          := $(HEX_DIR)/$(TARGET).hex
 
-.PHONY: all clean
+MATRIX_TARGETS := \
+	rop_zicfiss_cfi_off_rt_off \
+	rop_zicfiss_cfi_off_rt_on \
+	rop_zicfiss_cfi_on_rt_off \
+	rop_zicfiss_cfi_on_rt_on
+
+.PHONY: all matrix $(MATRIX_TARGETS) clean
 
 all: $(ELF) $(STEXT) $(HEX)
 
+matrix: $(MATRIX_TARGETS)
+
+rop_zicfiss_cfi_off_rt_off:
+	$(MAKE) TARGET=$@ CFI_INSERT=0 ZICFI_RUNTIME_ENABLE=0
+
+rop_zicfiss_cfi_off_rt_on:
+	$(MAKE) TARGET=$@ CFI_INSERT=0 ZICFI_RUNTIME_ENABLE=1
+
+rop_zicfiss_cfi_on_rt_off:
+	$(MAKE) TARGET=$@ CFI_INSERT=1 ZICFI_RUNTIME_ENABLE=0
+
+rop_zicfiss_cfi_on_rt_on:
+	$(MAKE) TARGET=$@ CFI_INSERT=1 ZICFI_RUNTIME_ENABLE=1
+
 $(ELF): start.S main.c link.ld
-	$(CC) $(COMMON_FLAGS) $(ROP_FLAGS) -T link.ld start.S main.c -o $(ELF)
+	$(CC) $(COMMON_FLAGS) $(CPPFLAGS) $(ROP_FLAGS) -T link.ld start.S main.c -o $(ELF)
 
 $(STEXT): $(ELF)
 	$(OBJDUMP) -d $(ELF) > $(STEXT)
 
 $(HEX): $(ELF)
+	mkdir -p $(HEX_DIR)
 	elf2hex 4 8192 $(ELF) > $(HEX)
 
 clean:
 	rm -f $(ELF) $(STEXT)
-	rm -f $(HEX)
+	rm -f $(addsuffix .elf,$(MATRIX_TARGETS))
+	rm -f $(addsuffix .SText,$(MATRIX_TARGETS))
+	rm -f $(HEX_DIR)/rop_zicfiss_*.hex

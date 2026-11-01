@@ -1,5 +1,9 @@
 typedef unsigned int u32;
 
+#ifndef ZICFI_RUNTIME_ENABLE
+#define ZICFI_RUNTIME_ENABLE 1
+#endif
+
 volatile u32 g_stage;
 volatile u32 g_status;
 volatile u32 g_ssp_addr;
@@ -23,17 +27,22 @@ static u32 leaf_step(u32 x)
 __attribute__((noinline))
 u32 cause_shadow_mismatch(u32 x)
 {
-    volatile u32 *slot;
     u32 value;
 
     g_stage = 2;
     value = leaf_step(x);
 
+#if ZICFI_RUNTIME_ENABLE
     g_ssp_addr = read_ssp();
-    slot = (volatile u32 *)g_ssp_addr;
+    volatile u32 *slot = (volatile u32 *)g_ssp_addr;
     g_shadow_before = *slot;
     *slot = 0x13579bdfu;
     g_shadow_after = *slot;
+#else
+    g_ssp_addr = 0;
+    g_shadow_before = 0;
+    g_shadow_after = 0;
+#endif
 
     g_stage = 3;
     return value + 1;

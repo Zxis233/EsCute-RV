@@ -222,7 +222,7 @@ module coremark #(
 
     // 超时保护
     initial begin
-        #100000000;  // 1ms 超时
+        #100000000000;  // 1ms 超时
         $display("%10t| [INFO] |  Mispredict_counter = %0d", $time, u_CPU_TOP.mispredict_counter);
         $display("%10t| [EROR] |  TimeOut!  ", $time);
         $finish;

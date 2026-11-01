@@ -1,9 +1,10 @@
 # CFI 样例分析 (By ChatGPT)
 
-本文档整理了项目中两个“受控负例”样例：
+本文档整理了项目中三个“受控负例/边界”样例：
 
 - `user/data/c/jop_example`：用于验证 `Zicfilp`
 - `user/data/c/rop_example`：用于验证 `Zicfiss`
+- `user/data/c/cop_example`：用于验证合法 landing-pad 目标下的 COP 边界
 
 这里的目标不是实现可复用的攻击链，而是在一个可控环境里直接构造“控制流已经被篡改”的后果，用来验证当前 CPU 的 CFI 机制是否能按预期拦截。
 
@@ -36,6 +37,15 @@ JOP（Jump-Oriented Programming）的核心思路是：
 - 在发起间接跳转后，CPU 会把 `ELP` 置为“期待看到合法 landing pad”
 - 跳转目标如果不是 `LPAD`，就触发 `software-check` 异常
 
+### 1.3 COP
+
+COP（Call-Oriented Programming）可以理解成使用间接调用把控制流导向另一个“看起来合法”的函数入口。
+
+对本项目而言，它和 JOP 的区别是：
+
+- JOP 样例跳到没有 `LPAD` 的非法入口，应该被 `Zicfilp` 拦截。
+- COP 样例跳到编译器插桩后的合法函数入口，入口有 `LPAD`，因此 `Zicfilp` 只能确认 landing pad 合法，不能判断语义上是不是预期 callee。
+
 ## 2. 测试样例总览
 
 ### 2.1 JOP 样例
@@ -50,8 +60,8 @@ JOP（Jump-Oriented Programming）的核心思路是：
 实现思路：
 
 - `main()` 把 `bad_target` 放进全局函数指针 `g_bad_fp`
-- `do_indirect_call()` 通过这个函数指针发起一次真正的间接跳转
-- 为了匹配当前 RTL，函数指针被强制绑定到 `a5`，避免 `rs1` 落在 `x1/x5/x7`
+- `do_indirect_call()` 调用汇编 helper 发起一次真正的间接跳转
+- 汇编 helper 固定使用 `a5` 作为 `JALR` 基址，避免 `rs1` 落在 `x1/x5/x7`
 - `bad_target` 的第一条指令故意不是 `LPAD`
 - `start.S` 中的 `m_trap_vector` 检查：
   - `mcause == 18`
@@ -77,45 +87,97 @@ JOP（Jump-Oriented Programming）的核心思路是：
   - `mcause == 18`
   - `mtval == 3`
 
-## 3. “开启/关闭 CFI”在本文中的含义
+### 2.3 COP 样例
 
-这里要特别说明一件事：
+源码位置：
 
-- 本文的“开启 CFI”指开启编译器自动插桩，也就是开启 `-fcf-protection`
-- 本文的“关闭 CFI”指去掉 `-fcf-protection`
-- `start.S` 里打开 `menvcfg/senvcfg` 的硬件配置没有关闭
+- [user/data/c/cop_example/main.c](user/data/c/cop_example/main.c)
+- [user/data/c/cop_example/call_helper.S](user/data/c/cop_example/call_helper.S)
+- [user/data/c/cop_example/start.S](user/data/c/cop_example/start.S)
+- [user/data/c/cop_example/Makefile](user/data/c/cop_example/Makefile)
 
-因此：
+实现思路：
 
-- `JOP` 的“关闭 CFI”并不等于“完全关闭硬件 landing pad 检查”
-- `ROP` 的“关闭 CFI”也不等于“完全不支持 shadow stack CSR”，而是“编译器不再自动插入 `sspush/sspopchk`”
+- `main()` 先把 `g_call_fp` 设置为 `legit_target`
+- `corrupt_dispatch_pointer()` 再把它改成 `cop_target`
+- `call_via_fp()` 用汇编固定执行 `jalr ra, 0(a5)`，形成一次真实间接调用
+- `CFI_INSERT=1` 时，`cop_target` 入口有 `LPAD`，所以 `Zicfilp` 不会拦截
+- `CFI_INSERT=0, ZICFI_RUNTIME_ENABLE=1` 时，`cop_target` 入口没有 `LPAD`，会触发 `LPAD fault`
 
-这也是两个样例在 on/off 对比时表现不同的根本原因。
+## 3. 当前开关含义
+
+现在样例把两个容易混淆的开关拆开：
+
+- `CFI_INSERT=1/0`：控制编译器是否加 `-fcf-protection` 插桩。
+- `ZICFI_RUNTIME_ENABLE=1/0`：控制启动代码是否把 `menvcfg/senvcfg` 写成 `0x0c`。
+
+因此可以分别观察：
+
+- 编译器是否生成 `LPAD`、`SSPUSH`、`SSPOPCHK`。
+- CPU 在运行时是否真的启用 `Zicfilp/Zicfiss` 检查。
+
+这里仍然保留 `-march=rv32i_zicsr_zmmul_zicfiss_zicfilp`，因为源码和启动代码里需要汇编器识别相关 CSR 与指令编码。真正的运行时开关由 `menvcfg/senvcfg` 决定。
 
 ## 4. 编译方式
 
-本文结果使用了 4 个单独编译的变体：
-
-- `jop_zicfilp_on`
-- `jop_zicfilp_off`
-- `rop_zicfiss_on`
-- `rop_zicfiss_off`
-
-对应命令如下：
+每个样例可以一次生成 4 个变体：
 
 ```bash
-wsl zsh -ilc "cd /mnt/e/MyRV_DIDE/user/data/c/jop_example && make clean && make TARGET=jop_zicfilp_on JOP_FLAGS='-fcf-protection=branch -fno-inline -fno-optimize-sibling-calls'"
-wsl zsh -ilc "cd /mnt/e/MyRV_DIDE/user/data/c/jop_example && make clean && make TARGET=jop_zicfilp_off JOP_FLAGS=''"
-wsl zsh -ilc "cd /mnt/e/MyRV_DIDE/user/data/c/rop_example && make clean && make TARGET=rop_zicfiss_on ROP_FLAGS='-fcf-protection=return -fno-inline -fno-optimize-sibling-calls'"
-wsl zsh -ilc "cd /mnt/e/MyRV_DIDE/user/data/c/rop_example && make clean && make TARGET=rop_zicfiss_off ROP_FLAGS=''"
+cd user/data/c/jop_example && make matrix
+cd user/data/c/cop_example && make matrix
+cd user/data/c/rop_example && make matrix
 ```
 
-仿真时统一使用 `tb_CPU_TOP`，只切换 `+TESTCASE` 指向不同的 `hex` 文件。
+生成的 `hex` 位于 `user/data/hex/`：
+
+- `jop_zicfilp_cfi_off_rt_off.hex`
+- `jop_zicfilp_cfi_off_rt_on.hex`
+- `jop_zicfilp_cfi_on_rt_off.hex`
+- `jop_zicfilp_cfi_on_rt_on.hex`
+- `cop_zicfilp_cfi_off_rt_off.hex`
+- `cop_zicfilp_cfi_off_rt_on.hex`
+- `cop_zicfilp_cfi_on_rt_off.hex`
+- `cop_zicfilp_cfi_on_rt_on.hex`
+- `rop_zicfiss_cfi_off_rt_off.hex`
+- `rop_zicfiss_cfi_off_rt_on.hex`
+- `rop_zicfiss_cfi_on_rt_off.hex`
+- `rop_zicfiss_cfi_on_rt_on.hex`
+
+也可以单独编译一个变体：
+
+```bash
+make CFI_INSERT=1 ZICFI_RUNTIME_ENABLE=1
+make CFI_INSERT=0 ZICFI_RUNTIME_ENABLE=0
+```
+
+仿真时统一使用 `tb_CPU_TOP`，只切换 `+TESTCASE` 指向对应的 `hex` 文件。
+
+如果要用 Verilator 一次跑完 12 组并保存 FST 波形，可以直接运行：
+
+```bash
+user/tools/run_cfi_matrix_verilator.sh
+```
+
+默认输出：
+
+- `prj/verilator/cfi_matrix/waves/<case>.fst`
+- `prj/verilator/cfi_matrix/logs/<case>.log`
+- `prj/verilator/cfi_matrix/summary.txt`
+
+常用选项：
+
+```bash
+user/tools/run_cfi_matrix_verilator.sh --skip-build
+user/tools/run_cfi_matrix_verilator.sh --dry-run
+OUT_DIR=/tmp/cfi_waves user/tools/run_cfi_matrix_verilator.sh
+```
+
+这些 C 裸机样例最终会停在自旋循环里，所以 `tb_Verilator` 可能以 `[EROR] TimeOut!` 结束；脚本默认只要求仿真退出并生成波形，不把这个 timeout 当成脚本失败。
 
 说明：
 
 - `tb_CPU_TOP` 只打印非零寄存器，因此 `x29 = 0` 的成功态不会显示出来
-- 本文引用的日志来自：
+- 原有 `on.log/off.log` 是拆分运行时开关前的历史快照，不覆盖新的四象限矩阵：
   - [user/data/c/jop_example/on.log](user/data/c/jop_example/on.log)
   - [user/data/c/jop_example/off.log](user/data/c/jop_example/off.log)
   - [user/data/c/rop_example/on.log](user/data/c/rop_example/on.log)
@@ -128,26 +190,26 @@ wsl zsh -ilc "cd /mnt/e/MyRV_DIDE/user/data/c/rop_example && make clean && make 
 `main.c` 中的关键路径：
 
 1. `g_bad_fp = bad_target`
-2. `do_indirect_call()` 从 `g_bad_fp` 取出目标地址
-3. 通过 `a5` 执行间接跳转
+2. `do_indirect_call()` 调用汇编 helper
+3. 汇编 helper 从 `g_bad_fp` 取出目标地址，并固定通过 `a5` 执行 `jr a5`
 4. 目标地址落到 `bad_target`
 5. 因为 `bad_target` 没有 `LPAD`，触发 `Zicfilp` trap
 
 打开编译器插桩后的反汇编可以看到：
 
-- [user/data/c/jop_example/jop_zicfilp_on.SText](user/data/c/jop_example/jop_zicfilp_on.SText)
+- `jop_zicfilp_cfi_on_rt_on.SText`
 - `main` 入口带 `lpad 0`
-- `do_indirect_call` 中保留了真正的 `jalr a5`
+- `call_bad_target_indirect` 中保留了真正的 `jr a5`
 - `bad_target` 仍然没有 `LPAD`
 
 关闭编译器插桩后的反汇编可以看到：
 
-- [user/data/c/jop_example/jop_zicfilp_off.SText](user/data/c/jop_example/jop_zicfilp_off.SText)
+- `jop_zicfilp_cfi_off_rt_on.SText`
 - `main` 入口不再有 `lpad`
-- `do_indirect_call` 仍然是一次间接跳转，只是变成了 `jr a5`
+- `call_bad_target_indirect` 仍然是一次固定的 `jr a5`
 - `bad_target` 依旧没有 `LPAD`
 
-也就是说，JOP 样例里“关闭编译器插桩”并没有让攻击成功，因为：
+也就是说，JOP 样例里只关闭编译器插桩不会让非法跳转通过，因为：
 
 - 运行时硬件的 `LPE` 依然打开
 - 间接跳转目标仍然是一个没有 `LPAD` 的非法入口
@@ -159,20 +221,22 @@ wsl zsh -ilc "cd /mnt/e/MyRV_DIDE/user/data/c/rop_example && make clean && make 
 
 1. 调用 `cause_shadow_mismatch(40)`
 2. `cause_shadow_mismatch()` 先调用 `leaf_step()`，成为一个非 leaf 函数
-3. 用 `ssrdp` 读取当前 `ssp`
-4. 直接修改当前 shadow slot
+3. 当 `ZICFI_RUNTIME_ENABLE=1` 时，用 `ssrdp` 读取当前 `ssp`
+4. 当运行时 CFI 打开时，直接修改当前 shadow slot
 5. 函数返回时，如果编译器插入了 `sspopchk`，就会触发 `shadow stack fault`
+
+当 `ZICFI_RUNTIME_ENABLE=0` 时，C 代码会跳过 `ssrdp` 和 shadow-slot 写入，避免在 RTL 返回 `ssp=0` 时访问地址 0。
 
 打开编译器插桩后的反汇编可以看到：
 
-- [user/data/c/rop_example/rop_zicfiss_on.SText](user/data/c/rop_example/rop_zicfiss_on.SText)
+- `rop_zicfiss_cfi_on_rt_on.SText`
 - `cause_shadow_mismatch` 入口有 `sspush ra`
 - 尾部有 `sspopchk t0`
 - `main` 本身也有 `sspush ra`
 
 关闭编译器插桩后的反汇编可以看到：
 
-- [user/data/c/rop_example/rop_zicfiss_off.SText](user/data/c/rop_example/rop_zicfiss_off.SText)
+- `rop_zicfiss_cfi_off_rt_on.SText`
 - `cause_shadow_mismatch` 仍然会执行手写的 `ssrdp`
 - 但已经没有自动生成的 `sspush`
 - 也没有自动生成的 `sspopchk`
@@ -180,16 +244,50 @@ wsl zsh -ilc "cd /mnt/e/MyRV_DIDE/user/data/c/rop_example && make clean && make 
 
 这说明 `Zicfiss` 的防护点不在“读到 `ssp`”本身，而在编译器是否把返回路径改造成 `shadow stack push/pop-check`。
 
+### 5.3 COP 样例程序实现
+
+`main.c` 中的关键路径：
+
+1. `g_call_fp = legit_target`
+2. `corrupt_dispatch_pointer()` 把 `g_call_fp` 改成 `cop_target`
+3. `call_via_fp()` 从 `g_call_fp` 取出目标地址
+4. 通过 `a5` 执行 `jalr ra, 0(a5)`
+5. 如果 `cop_target` 有合法 `LPAD`，控制流不会被 `Zicfilp` 拦截，程序最后进入 `finish_observed(0x40)`
+
+打开编译器插桩后的反汇编可以看到：
+
+- `cop_zicfilp_cfi_on_rt_on.SText`
+- `legit_target` 和 `cop_target` 入口都有 `lpad 0`
+- `call_via_fp` 固定使用 `jalr a5`
+
+关闭编译器插桩后的反汇编可以看到：
+
+- `cop_zicfilp_cfi_off_rt_on.SText`
+- `cop_target` 入口没有 `lpad`
+- `call_via_fp` 仍然固定使用 `jalr a5`
+
+因此 COP 样例和 JOP 的关键区别是：`CFI_INSERT=1, ZICFI_RUNTIME_ENABLE=1` 时，目标函数入口对 `Zicfilp` 来说是合法 landing pad，所以不会触发 `LPAD fault`。
+
 ## 6. 运行结果对比
 
 ### 6.1 汇总表
 
-| 样例 | 编译方式 | 关键反汇编特征                                                 | 最终结果                                      | 关键寄存器                            |
-| ---- | -------- | -------------------------------------------------------------- | --------------------------------------------- | ------------------------------------- |
-| JOP  | CFI on   | `main` 有 `lpad`，间接跳转为 `jalr a5`，`bad_target` 无 `LPAD` | 触发 `LPAD fault`                             | `x5=18`, `x6=0xcc`, `x7=2`, `x28=1`   |
-| JOP  | CFI off  | `main` 无 `lpad`，间接跳转为 `jr a5`，`bad_target` 无 `LPAD`   | 仍然触发 `LPAD fault`                         | `x5=18`, `x6=0xcc`, `x7=2`, `x28=1`   |
-| ROP  | CFI on   | `cause_shadow_mismatch` 有 `sspush` 和 `sspopchk`              | 触发 `shadow stack fault`                     | `x5=18`, `x6=0x134`, `x7=3`, `x28=1`  |
-| ROP  | CFI off  | 只有手写 `ssrdp`，没有 `sspush/sspopchk`                       | 不触发 CFI trap，程序落到 `finish_fail(0x20)` | `x28=0x20`, `x29=1`, `x15=0xdead0020` |
+| 样例 | `CFI_INSERT` | `ZICFI_RUNTIME_ENABLE` | 关键反汇编特征 | 预期结果 |
+| ---- | ------------ | ---------------------- | -------------- | -------- |
+| JOP  | 0 | 0 | 无自动 `lpad`，helper 固定 `jr a5` | 不触发 `LPAD fault`，落到 `finish_fail(0x20)` |
+| JOP  | 0 | 1 | 无自动 `lpad`，helper 固定 `jr a5`，`bad_target` 无 `LPAD` | 触发 `LPAD fault` |
+| JOP  | 1 | 0 | C 函数入口有自动 `lpad`，但运行时 `LPE=0` | 不触发 `LPAD fault`，落到 `finish_fail(0x20)` |
+| JOP  | 1 | 1 | C 函数入口有自动 `lpad`，helper 固定 `jr a5`，`bad_target` 无 `LPAD` | 触发 `LPAD fault` |
+| COP  | 0 | 0 | `cop_target` 无 `lpad`，但运行时 `LPE=0` | 不触发 `LPAD fault`，进入 `finish_observed(0x40)` |
+| COP  | 0 | 1 | `cop_target` 无 `lpad`，helper 固定 `jalr a5` | 触发 `LPAD fault` |
+| COP  | 1 | 0 | `cop_target` 有 `lpad`，但运行时 `LPE=0` | 不触发 `LPAD fault`，进入 `finish_observed(0x40)` |
+| COP  | 1 | 1 | `cop_target` 有合法 `lpad`，helper 固定 `jalr a5` | 不触发 `LPAD fault`，进入 `finish_observed(0x40)` |
+| ROP  | 0 | 0 | 无 `sspush/sspopchk`，且跳过手写 `ssrdp` | 不触发 shadow-stack fault，落到 `finish_fail(0x20)` |
+| ROP  | 0 | 1 | 手写 `ssrdp` 和 shadow-slot 改写存在，但无 `sspopchk` | 不触发 shadow-stack fault，落到 `finish_fail(0x20)` |
+| ROP  | 1 | 0 | 有自动 `sspush/sspopchk`，但运行时 `SSE=0` | 不触发 shadow-stack fault，落到 `finish_fail(0x20)` |
+| ROP  | 1 | 1 | 有自动 `sspush/sspopchk`，且 shadow slot 被改写 | 触发 `shadow stack fault` |
+
+下面的 `on.log/off.log` 是旧的两组历史日志，适合对照异常形态，但不代表新的四象限完整结果。
 
 ### 6.2 JOP on
 
@@ -274,18 +372,16 @@ wsl zsh -ilc "cd /mnt/e/MyRV_DIDE/user/data/c/rop_example && make clean && make 
 
 1. `Zicfilp` 的检查点是“间接跳转目标是否合法”
    - 只要运行时 `LPE` 打开，跳到一个没有 `LPAD` 的目标就会被拦截
-   - 因此在这个 JOP 负例里，关闭编译器插桩后仍然会 trap
+   - 因此在这个 JOP 负例里，`CFI_INSERT=0, ZICFI_RUNTIME_ENABLE=1` 仍然会 trap
 
 2. `Zicfiss` 的检查点是“函数返回时有没有做 shadow stack 比对”
    - 这依赖编译器是否插入 `sspush/sspopchk`
-   - 一旦关闭返回插桩，ROP 样例就不再触发 CFI trap，而是正常返回到失败路径
+   - 一旦关闭返回插桩，ROP 样例就不再触发 shadow-stack fault，而是正常返回到失败路径
+   - 如果运行时 `SSE=0`，即便编译器插入了 `sspush/sspopchk`，当前 RTL 也会把它们按未启用路径处理
 
 3. 因此对于软件栈保护来说：
    - `Zicfilp` 更像是“硬件在目标端做准入检查”
    - `Zicfiss` 更像是“编译器与硬件协作，在返回路径上显式插入检查点”
+   - COP 样例说明：当被劫持目标本身拥有合法 `LPAD` 时，`Zicfilp` 不会按语义区分“是不是原本期望的函数”
 
-如果要继续扩展测试，下一步最值得做的是：
-
-- 再补一个“完全关闭运行时 CFI 开关”的版本  
-  即在 `start.S` 中同时清掉 `menvcfg/senvcfg` 的相关位
-- 这样就可以把“关闭编译器插桩”和“关闭硬件 CFI 执行逻辑”两种场景分开比较
+现在四象限矩阵已经能把“关闭编译器插桩”和“关闭硬件 CFI 执行逻辑”分开比较。

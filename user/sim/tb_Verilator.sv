@@ -97,6 +97,7 @@ module tb_Verilator #(
 
     string        testcase;
     string        wavefile;
+    string        wave_format;
 
     localparam logic [31:0] PASS_MAGIC = 32'h0d000721;
     localparam logic [31:0] FAIL_MAGIC = 32'h01919810;
@@ -195,10 +196,22 @@ module tb_Verilator #(
     initial begin
         int dumpwave;
 
+        if (!$value$plusargs("WAVE_FORMAT=%s", wave_format)) begin
+            wave_format = "vcd";
+        end
         if (!$value$plusargs("WAVEFILE=%s", wavefile)) begin
-            wavefile = "prj/verilator/wave.vcd";
+            if (wave_format == "fst") begin
+                wavefile = "prj/verilator/wave.fst";
+            end else begin
+                wavefile = "prj/verilator/wave.vcd";
+            end
         end
         if ($value$plusargs("DUMPWAVE=%d", dumpwave) && dumpwave == 1) begin
+            if (wave_format == "fst") begin
+                $display("%10t| [INFO] |  Dump FST waveform: %s", $time, wavefile);
+            end else begin
+                $display("%10t| [INFO] |  Dump VCD waveform: %s", $time, wavefile);
+            end
             $dumpfile(wavefile);
             $dumpvars(0, tb_Verilator);
         end

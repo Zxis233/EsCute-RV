@@ -5,16 +5,14 @@ volatile u32 g_status;
 int (* volatile g_bad_fp)(void);
 
 extern int bad_target(void);
+extern int call_bad_target_indirect(void);
 
 __attribute__((noinline))
 static int do_indirect_call(void)
 {
     g_stage = 1;
 
-    // Force the indirect branch base register away from x1/x5/x7 so
-    // the current RTL will set ELP before the JALR.
-    register int (*fp)(void) asm("a5") = g_bad_fp;
-    return fp();
+    return call_bad_target_indirect();
 }
 
 __attribute__((noinline, noreturn))

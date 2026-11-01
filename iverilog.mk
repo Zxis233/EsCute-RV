@@ -31,7 +31,7 @@ WAV_FILE        := $(WAVE_DIR)/wave.vcd
 COREMARK_WAVE   := $(WAVE_DIR)/coremark.vcd
 REGRESS_SUMMARY := $(RUN_DIR)/regress_summary_$(FOLDER)_iverilog.txt
 
-.PHONY: all help list_tests compile run coremark_compile coremark_test wave regress regress_prepare regress_run regress_collect clean
+.PHONY: all help list_tests asm_run compile run coremark_compile coremark_test wave regress regress_prepare regress_run regress_collect clean
 
 all: compile help regress
 
@@ -47,12 +47,15 @@ help:
 	@echo "  make SIM=$(SIM) compile       - 仅编译测试台"
 	@echo "  make SIM=$(SIM) wave          - 查看波形"
 	@echo "  make SIM=$(SIM) list_tests    - 列出所有可用测试"
+	@echo "  make SIM=$(SIM) asm_list      - 列出 user/data/asm 下的汇编程序"
+	@echo "  make SIM=$(SIM) asm_run       - 编译并运行自定义汇编程序"
 	@echo "  make SIM=$(SIM) regress       - 运行所有测试用例"
 	@echo "  make SIM=$(SIM) coremark_test - 运行 CoreMark"
 	@echo "  make SIM=$(SIM) clean         - 清理生成文件"
 	@echo ""
 	@echo "运行特定测试:"
 	@echo "  make SIM=$(SIM) run TESTCASE=<test_name>"
+	@echo "  make SIM=$(SIM) asm_run ASM=<asm_name> ARCH=<march> [ABI=<mabi>]"
 	@echo ""
 	@echo "切换仿真器:"
 	@echo "  make SIM=iverilog run"
@@ -94,6 +97,18 @@ run: compile
 	@cd $(RUN_DIR) && \
 		$(VVP) $(SIM_BIN) \
 		+TESTCASE=$(TEST_HEX) \
+		+DUMPWAVE=$(DUMPWAVE) \
+		+PRINT_INFO=$(PRINT_INFO)
+
+asm_run: asm_compile compile
+	@echo "========================================"
+	@echo "运行自定义汇编程序: $(ASM_NAME)"
+	@echo "源文件: $(ASM_SRC)"
+	@echo "测试文件: $(ASM_HEX)"
+	@echo "========================================"
+	@cd $(RUN_DIR) && \
+		$(VVP) $(SIM_BIN) \
+		+TESTCASE=$(ASM_HEX) \
 		+DUMPWAVE=$(DUMPWAVE) \
 		+PRINT_INFO=$(PRINT_INFO)
 

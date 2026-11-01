@@ -229,6 +229,26 @@ make SIM=iverilog coremark_test BPU_TYPE=3
 make SIM=verilator compile BPU_TYPE=3
 ```
 
+### 自定义汇编程序仿真
+
+可以把自定义裸汇编放在 [user/data/asm](user/data/asm) 下，并通过 Makefile 编译成 hex 后直接送入现有测试台运行。默认程序为 `JOP.S`，默认架构为 `rv32i_zicsr_zmmul_zicfiss_zicfilp`：
+
+```bash
+make SIM=iverilog asm_list
+make SIM=iverilog asm_run ASM=JOP
+make SIM=verilator asm_run ASM=JOP ARCH=rv32i_zicsr_zmmul_zicfiss_zicfilp
+```
+
+`ASM` 可以写不带扩展名的 `user/data/asm` 文件名，也可以写具体 `.S` 路径。`ARCH` 会传给 `-march=`，`ABI` 默认按 `ARCH` 前缀选择 `ilp32` 或 `lp64`，也可以手动覆盖：
+
+```bash
+make SIM=iverilog asm_run ASM=ROP ARCH=rv64i_zicsr ABI=lp64 RISCV_PREFIX=riscv64-unknown-elf-
+```
+
+默认链接脚本为 [link.ld](user/data/asm/link.ld)，也可以用 `ASM_LINKER=<path>` 覆盖。
+
+生成的中间文件在 `prj/asm/` 下，包括 `.elf`、`.dump` 和 `.hex`。汇编程序仍需自己通过 `tohost` 或测试台识别的寄存器魔数结束，否则仿真会超时。
+
 如果需要 sweep `INDEX_BITS` / `META_BITS`，当前可以直接修改 [CPU_TOP.sv](user/src/CPU_TOP.sv) 中的 `BPU_INDEX_BITS` 与 `BPU_META_BITS` 两个 `localparam`。
 
 关于统计信息：

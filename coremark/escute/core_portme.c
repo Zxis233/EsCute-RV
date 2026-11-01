@@ -41,7 +41,10 @@ volatile ee_s32 seed1_volatile = 0x8;
 volatile ee_s32 seed2_volatile = 0x8;
 volatile ee_s32 seed3_volatile = 0x8;
 #endif
-volatile ee_s32 seed4_volatile = 10;
+#ifndef ITERATIONS
+#define ITERATIONS 10
+#endif
+volatile ee_s32 seed4_volatile = ITERATIONS;
 volatile ee_s32 seed5_volatile = 0;
 
 /* Read mcycle CSR (cycle counter) - returns full 64 bits

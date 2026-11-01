@@ -7,17 +7,34 @@ DUMPWAVE := 0
 endif
 
 RUN_DIR         := $(SIM_DIR)/prj/verilator
-OBJ_DIR         := $(RUN_DIR)/obj_dir
-COREMARK_OBJ    := $(RUN_DIR)/coremark_obj_dir
 TB_TOP          := $(VERILATOR_TB_TOP)
 TB_MODULE       := tb_Verilator
 COREMARK_TOP    := coremark
 
 VERILATOR       ?= verilator
 JOBS            ?= $(shell nproc 2>/dev/null || getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)
+WAVE_FORMAT     ?= fst
+
+SUPPORTED_WAVE_FORMATS := vcd fst
+ifeq ($(filter $(WAVE_FORMAT),$(SUPPORTED_WAVE_FORMATS)),)
+$(error 不支持的 WAVE_FORMAT='$(WAVE_FORMAT)'，可选值: $(SUPPORTED_WAVE_FORMATS))
+endif
+
+ifeq ($(WAVE_FORMAT),fst)
+VERILATOR_TRACE_FLAGS := --trace-fst
+WAVE_EXT              := fst
+OBJ_SUFFIX            := _fst
+else
+VERILATOR_TRACE_FLAGS := --trace
+WAVE_EXT              := vcd
+OBJ_SUFFIX            :=
+endif
+
+OBJ_DIR         := $(RUN_DIR)/obj_dir$(OBJ_SUFFIX)
+COREMARK_OBJ    := $(RUN_DIR)/coremark_obj_dir$(OBJ_SUFFIX)
 
 VERILATOR_WARNINGS := -Wno-fatal -Wno-WIDTHEXPAND -Wno-WIDTHTRUNC -Wno-PINCONNECTEMPTY
-VERILATOR_FLAGS    := -sv --timing --binary --build --trace -j $(JOBS)
+VERILATOR_FLAGS    := -sv --timing --binary --build $(VERILATOR_TRACE_FLAGS) -j $(JOBS)
 VERILATOR_FLAGS    += -I$(SRC_DIR) -I$(SRC_DIR)/include
 VERILATOR_FLAGS    += $(VERILATOR_WARNINGS)
 VERILATOR_PARAM_FLAGS :=
@@ -28,11 +45,11 @@ endif
 
 SIM_BIN         := $(OBJ_DIR)/V$(TB_MODULE)
 COREMARK_BIN    := $(COREMARK_OBJ)/V$(COREMARK_TOP)
-WAV_FILE        := $(RUN_DIR)/wave.vcd
-COREMARK_WAVE   := $(RUN_DIR)/coremark.vcd
+WAV_FILE        := $(RUN_DIR)/wave.$(WAVE_EXT)
+COREMARK_WAVE   := $(RUN_DIR)/coremark.$(WAVE_EXT)
 REGRESS_SUMMARY := $(RUN_DIR)/regress_summary_$(FOLDER)_verilator.txt
 
-.PHONY: all help list_tests compile run coremark_compile coremark_test wave regress regress_prepare regress_run regress_collect clean
+.PHONY: all help list_tests asm_run compile run coremark_compile coremark_test wave regress regress_prepare regress_run regress_collect clean
 
 all: compile help regress
 
@@ -48,12 +65,16 @@ help:
 	@echo "  make SIM=$(SIM) compile       - 仅编译测试台"
 	@echo "  make SIM=$(SIM) wave          - 查看波形"
 	@echo "  make SIM=$(SIM) list_tests    - 列出所有可用测试"
+	@echo "  make SIM=$(SIM) asm_list      - 列出 user/data/asm 下的汇编程序"
+	@echo "  make SIM=$(SIM) asm_run       - 编译并运行自定义汇编程序"
 	@echo "  make SIM=$(SIM) regress       - 运行所有测试用例"
 	@echo "  make SIM=$(SIM) coremark_test - 运行 CoreMark"
 	@echo "  make SIM=$(SIM) clean         - 清理生成文件"
 	@echo ""
 	@echo "运行特定测试:"
 	@echo "  make SIM=$(SIM) run TESTCASE=<test_name>"
+	@echo "  make SIM=$(SIM) asm_run ASM=<asm_name> ARCH=<march> [ABI=<mabi>]"
+	@echo "  make SIM=$(SIM) asm_run ASM=<asm_name> DUMPWAVE=1 WAVE_FORMAT=fst"
 	@echo ""
 	@echo "切换仿真器:"
 	@echo "  make SIM=iverilog run"
@@ -96,6 +117,20 @@ run: compile
 		+TESTCASE=$(TEST_HEX) \
 		+DUMPWAVE=$(DUMPWAVE) \
 		+PRINT_INFO=$(PRINT_INFO) \
+		+WAVE_FORMAT=$(WAVE_FORMAT) \
+		+WAVEFILE=$(WAV_FILE)
+
+asm_run: asm_compile compile
+	@echo "========================================"
+	@echo "运行自定义汇编程序: $(ASM_NAME)"
+	@echo "源文件: $(ASM_SRC)"
+	@echo "测试文件: $(ASM_HEX)"
+	@echo "========================================"
+	@$(SIM_BIN) \
+		+TESTCASE=$(ASM_HEX) \
+		+DUMPWAVE=$(DUMPWAVE) \
+		+PRINT_INFO=$(PRINT_INFO) \
+		+WAVE_FORMAT=$(WAVE_FORMAT) \
 		+WAVEFILE=$(WAV_FILE)
 
 $(COREMARK_BIN): $(COREMARK_TB) $(RTL_FILES) | $(RUN_DIR)
@@ -122,6 +157,7 @@ coremark_test: clean coremark_compile
 		+TESTCASE=$(COREMARK_HEX) \
 		+DUMPWAVE=$(DUMPWAVE) \
 		+PRINT_INFO=$(PRINT_INFO) \
+		+WAVE_FORMAT=$(WAVE_FORMAT) \
 		+WAVEFILE=$(COREMARK_WAVE)
 
 wave:
@@ -145,7 +181,8 @@ regress_run:
 			+TESTCASE=$(TEST_DIR)/$$test.hex \
 			+DUMPWAVE=0 \
 			+PRINT_INFO=0 \
-			+WAVEFILE=$(RUN_DIR)/$$test.vcd \
+			+WAVE_FORMAT=$(WAVE_FORMAT) \
+			+WAVEFILE=$(RUN_DIR)/$$test.$(WAVE_EXT) \
 			2>&1 | grep -E "\[PASS\]|\[FAIL\]|\[EROR\]" | tee -a $(REGRESS_SUMMARY); \
 	done
 	@echo "========================================"

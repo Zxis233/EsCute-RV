@@ -31,7 +31,11 @@ coremark/escute/*.o
 *.zip
 
 !user/data/c
+!user/data/c/*/
+!user/data/c/*/Makefile
+!user/data/c/*/*.c
+!user/data/c/*/*.S
+!user/data/c/*/*.ld
 !user/data/c/*/*.log
-!user/data/c/*/*.SText
 
 .codex

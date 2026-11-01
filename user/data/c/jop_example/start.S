@@ -1,5 +1,9 @@
     .option norvc
 
+#ifndef ZICFI_RUNTIME_ENABLE
+#define ZICFI_RUNTIME_ENABLE 1
+#endif
+
     .equ ZICFI_ENVCFG_ENABLE, 0x0000000c
     .equ MSTATUS_MPP_MASK,    0x00001800
     .equ MSTATUS_MPP_S,       0x00000800
@@ -15,7 +19,11 @@ _start:
     la      t0, m_trap_vector
     csrw    mtvec, t0
 
+#if ZICFI_RUNTIME_ENABLE
     li      t0, ZICFI_ENVCFG_ENABLE
+#else
+    li      t0, 0
+#endif
     csrw    menvcfg, t0
     csrw    senvcfg, t0
 
